@@ -1,0 +1,65 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" dir="ltr" lang="en">
+<head>
+	<title>Html5 Canvas Test</title>
+	<!--<link type="text/css" rel="stylesheet" href="css/style.css" />-->
+	<style>
+		body * {
+			margin: 0;
+			padding: 0;
+			font-size: 14px;
+		}
+		
+		.chat-feat {
+	    position: relative;
+		}
+		
+		.chat-feat .cs-textarea {
+			float: left;
+			padding: 5px 13px;
+			width: 250px;
+			height: 37px;
+			line-height: 20px;
+	    border: 1px solid #1184ce;
+	    border-radius: 4px 0 0 4px;
+	    border-width: 1px 0 1px 1px;
+	    overflow: hidden;
+	    background: #fff none repeat scroll 0 0;
+	    resize: none;
+	    outline: 0 none;
+		}
+		
+		.chat-feat .b-btn-gray, .chat-feat .b-btn-gray:hover {
+	    background: #bcc3cf none repeat scroll 0 0;
+		}
+		.chat-feat .b-btn {
+			float: left;
+			width: 43px;
+			height: 49px;
+			font-size: 14px;
+			color: #fff;
+			line-height: 49px;
+			text-align: center;
+			border-radius: 0 4px 4px 0;
+			cursor: pointer;
+	    display: block;
+	    background: #f70 none repeat scroll 0 0;
+		}
+	</style>
+</head>
+<body>
+	<div id='wrap' class='chat-feat clearfix'>
+		<textarea class='cs-textarea'></textarea>
+		<div class='b-btn'>·¢ËÍ</div>
+	</div>
+	
+	<script type="text/javaScript">
+		var wrap = document.getElementById('wrap');
+		wrap.onresize = onresize;
+		
+		function onresize(e) {
+			console.log('onresize');
+		}
+	</script>
+</body>
+</html>
