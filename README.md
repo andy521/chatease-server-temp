@@ -12,4 +12,4 @@ This is a server-side sample project of maven for [chatease](https://github.com/
 
 ## Software License
 
-MIT
+MIT.
