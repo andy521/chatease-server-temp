@@ -4,7 +4,7 @@
 
 > [[source] https://github.com/studease/chatease-server](https://github.com/studease/chatease-server)
 
-This is a server-side sample project of maven for [chatease](https://github.com/studease/chatease), using spring-websocket.
+This is a server-side sample project for [chatease](https://github.com/studease/chatease), using spring-websocket.
 
 
 ## Build & Run
