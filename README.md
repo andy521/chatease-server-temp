@@ -1,5 +1,9 @@
 # chatease-server
 
+> [[domain] http://studease.cn](http://studease.cn)
+
+> [[source] https://github.com/studease/chatease-server](https://github.com/studease/chatease-server)
+
 This is a server-side sample project of maven for [chatease](https://github.com/studease/chatease), using spring-websocket.
 
 
