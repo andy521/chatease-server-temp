@@ -13,6 +13,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
@@ -26,7 +27,7 @@ import org.springframework.web.socket.server.HandshakeInterceptor;
 public class WebSocketHandshakeInterceptor implements HandshakeInterceptor {
 
 	private static final Log logger = LogFactory.getLog(WebSocketHandshakeInterceptor.class);
-	private static final String USERINFO_REQ_URL = "http://localhost:81/websocket/userinfo.json";
+	private static final String USERINFO_REQ_URL = "http://localhost:8080/websocket/userinfo/userinfo.json";
 	//private static final String USERINFO_REQ_URL = "http://192.168.1.227:8080/live/method=httpChatRoom";
 	
 	@Override
@@ -68,15 +69,17 @@ public class WebSocketHandshakeInterceptor implements HandshakeInterceptor {
 	
 	private JSONObject getUserInfo(String token) {
 		HttpClient httpclient = new DefaultHttpClient();
-        
-        JSONObject param = new JSONObject();
-        param.put("uniqueKey", token);
-        
-        HttpPost request = new HttpPost(USERINFO_REQ_URL);
-        request.addHeader("Content-type", "application/json; charset=utf-8");  
-        request.setHeader("Accept", "application/json");
-        request.setEntity(new StringEntity(param.toString(), Charset.forName("UTF-8")));
-        
+		
+		JSONObject param = new JSONObject();
+		param.put("uniqueKey", token);
+		
+		HttpGet request = new HttpGet(USERINFO_REQ_URL + "?token=" + token);
+		
+		/*HttpPost request = new HttpPost(USERINFO_REQ_URL);
+		request.addHeader("Content-type", "application/json; charset=utf-8");
+		request.setHeader("Accept", "application/json");
+		request.setEntity(new StringEntity(param.toString(), Charset.forName("UTF-8")));*/
+		
 		HttpResponse httpresponse = null;
 		try {
 			httpresponse = httpclient.execute(request);

@@ -4,7 +4,7 @@
 	}
 };
 
-chatease.version = '0.1.02';
+chatease.version = '0.1.10';
 chatease.debug = false;
 
 (function(chatease) {
@@ -1529,12 +1529,13 @@ chatease.debug = false;
 		
 		function _reconnect() {
 			if (!model.maxRetries || _retriesCount < model.maxRetries) {
-				view.show('正在准备重连...');
+				var delay = Math.ceil(model.retryDelay + Math.random() * 5000);
+				view.show('正在准备重连，' + delay / 1000 + '秒...');
 				setTimeout(function() {
 					_retriesCount++;
 					_websocket = null;
 					_connect();
-				}, model.retryDelay + Math.random() * 5);
+				}, delay);
 			}
 		}
 		
@@ -1693,10 +1694,10 @@ chatease.debug = false;
 			url: 'ws://' + window.location.host + '/websocket/websck',
 			width: 300,
 			height: 450,
-	 		renderMode: renderModes.DEFAULT,
-	 		retryDelay: 3,
-			maxRetries: 0,
-			messageInterval: 0,
+	 		renderMode: renderModes.DEFAULT, // 'def'
+	 		retryDelay: 3000, // ms
+			maxRetries: 0, // -1: never, 0: always, uint: n times
+			messageInterval: 0, // ms
 			maxlog: 50,
 			fallback: true
 		},

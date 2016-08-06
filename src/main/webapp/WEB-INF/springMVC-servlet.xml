@@ -22,6 +22,6 @@
 		<property name="suffix" value=".jsp"/>
 	</bean>
 	
-    <mvc:resources location="/chat/" mapping="/chat/**"/>
     <mvc:resources location="/chatease/" mapping="/chatease/**"/>
+    <mvc:resources location="/userinfo/" mapping="/userinfo/**"/>
 </beans>
