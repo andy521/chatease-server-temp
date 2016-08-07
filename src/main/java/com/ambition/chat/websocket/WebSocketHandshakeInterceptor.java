@@ -33,6 +33,9 @@ public class WebSocketHandshakeInterceptor implements HandshakeInterceptor {
 	@Override
 	public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response, WebSocketHandler handler, Map<String, Object> attributes) throws Exception {
 		// TODO Auto-generated method stub
+		if (request.getHeaders().containsKey("Sec-WebSocket-Extensions")) {
+			request.getHeaders().set("Sec-WebSocket-Extensions", "permessage-deflate");
+		}
 		if (request instanceof ServletServerHttpRequest) {
 			ServletServerHttpRequest servletRequest = (ServletServerHttpRequest) request;
 			HttpSession session = servletRequest.getServletRequest().getSession(false);
