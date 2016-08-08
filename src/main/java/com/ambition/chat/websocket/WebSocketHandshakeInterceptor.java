@@ -27,7 +27,7 @@ import org.springframework.web.socket.server.HandshakeInterceptor;
 public class WebSocketHandshakeInterceptor implements HandshakeInterceptor {
 
 	private static final Log logger = LogFactory.getLog(WebSocketHandshakeInterceptor.class);
-	private static final String USERINFO_REQ_URL = "http://localhost:8080/websocket/userinfo/userinfo.json";
+	private static final String USERINFO_REQ_URL = "http://localhost/websocket/userinfo/userinfo.json";
 	//private static final String USERINFO_REQ_URL = "http://192.168.1.227:8080/live/method=httpChatRoom";
 	
 	@Override
