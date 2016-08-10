@@ -4,6 +4,7 @@
 		core = chatease.core,
 		renders = core.renders,
 		skins = renders.skins,
+		skinModes = skins.modes,
 		css = utils.css,
 		
 		RENDER_CLASS = 'render',
@@ -31,7 +32,9 @@
 	renders.def = function(view, config) {
 		var _this = utils.extend(this, new events.eventdispatcher('renders.def')),
 			_defaults = {
-				skin: 'def',
+				skin: {
+					name: skinModes.DEFAULT // 'def'
+				},
 				prefix: 'chat-'
 			},
 			_renderLayer,
@@ -77,7 +80,8 @@
 			
 			_textInput = utils.createElement('textarea');
 			_textInput.setAttribute('placeholder', '输入聊天内容');
-			_textInput.setAttribute('maxlength', 30);
+			if (_this.config.maxlength) 
+				_textInput.setAttribute('maxlength', _this.config.maxlength);
 			try {
 				_textInput.addEventListener('keypress', _onKeyPress);
 			} catch(e) {
@@ -97,12 +101,12 @@
 			_setElementIds();
 			
 			try {
-				_skin = new skins[_this.config.skin](_this.config);
+				_skin = new skins[_this.config.skin.name](_this.config);
 			} catch (e) {
-				utils.log('Failed to init skin[' + _this.config.skin + '].');
+				utils.log('Failed to init skin[' + _this.config.skin.name + '].');
 			}
 			if (!_skin) {
-				_this.dispatchEvent(events.CHATEASE_RENDER_ERROR, { message: 'No suitable skin found!', skin: _this.config.skin });
+				_this.dispatchEvent(events.CHATEASE_RENDER_ERROR, { message: 'No suitable skin found!', skin: _this.config.skin.name });
 				return;
 			}
 		}
@@ -172,7 +176,7 @@
 			switch (utils.typeOf(data)) {
 				case 'object':
 					message = data.text;
-					if (data.type == 'uni') {
+					if (data.pipe.type == 'uni') {
 						var span = utils.createElement('span');
 						span.innerHTML = '[密语]';
 						box.appendChild(span);
@@ -186,9 +190,11 @@
 				case 'string':
 					if (user === '') 
 						break;
-					user = { id: 0, name: user, role: 0 }; // fall through
+					user = { id: 0, name: user, role: 0 };
+					// fall through
 				case 'null':
-					user = { id: 0, name: '[系统]', role: 64 }; // fall through
+					user = { id: 0, name: '[系统]', role: 64 };
+					// fall through
 				case 'object':
 					if (utils.typeOf(user.id) == null) 
 						break;
@@ -223,7 +229,7 @@
 			//box.insertAdjacentHTML(user && user.id == view.user().id ? 'afterbegin' : 'beforeend', message);
 			box.insertAdjacentHTML('beforeend', message);
 			
-			if (_consoleLayer.childNodes.length >= _this.config.maxlog) {
+			if (_consoleLayer.childNodes.length >= _this.config.maxRecords) {
 				_consoleLayer.removeChild(_consoleLayer.childNodes[0]);
 			}
 			_consoleLayer.appendChild(box);
@@ -283,7 +289,11 @@
 		}
 		
 		_this.send = function() {
-			_this.dispatchEvent(events.CHATEASE_VIEW_SEND, { message: _textInput.value, userId: null });
+			_this.dispatchEvent(events.CHATEASE_VIEW_SEND, { data: {
+				text: _textInput.value,
+				type: 'multi',
+				pipe: _this.config.channel
+			}});
 			_this.clearInput();
 		}
 		

@@ -19,6 +19,11 @@
       <artifactId>javax.servlet-api</artifactId>
       <version>3.0.1</version>
     </dependency>
+    <dependency>
+      <groupId>log4j</groupId>
+      <artifactId>log4j</artifactId>
+      <version>1.2.16</version>
+    </dependency>
     
     <dependency>
       <groupId>org.springframework</groupId>
@@ -53,6 +58,7 @@
     	<version>20160212</version>
     </dependency>
   </dependencies>
+  
   <build>
     <finalName>websocket</finalName>
     <pluginManagement>

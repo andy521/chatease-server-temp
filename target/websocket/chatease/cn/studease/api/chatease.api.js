@@ -34,6 +34,8 @@
 			utils.emptyElement(_this.container);
 			
 			_this.config = options;
+			_this.config.id = _this.id;
+			
 			_this.embedder = new chatease.embed(_this);
 			_this.embedder.addGlobalListener(_onEvent);
 			_this.embedder.embed();
@@ -41,9 +43,9 @@
 			return _this;
 		};
 		
-		_this.setEntity = function(entity, renderMode) {
+		_this.setEntity = function(entity, renderName) {
 			_entity = entity;
-			_this.renderMode = renderMode;
+			_this.renderName = renderName;
 			
 			_this.send = _entity.send;
 			_this.resize = _entity.resize;

@@ -4,7 +4,7 @@
 	}
 };
 
-chatease.version = '0.1.10';
+chatease.version = '0.1.13';
 chatease.debug = false;
 
 (function(chatease) {
@@ -220,6 +220,31 @@ chatease.debug = false;
 })(chatease);
 
 (function(chatease) {
+	var utils = chatease.utils;
+	
+	utils.filter = function(keywords) {
+		var _this = this,
+			_re,
+			_keywords = ''; // 'keyword1|keyword2|...'
+		
+		function _init() {
+			if (utils.typeOf(keywords) == 'string' && keywords) {
+				_keywords = keywords;
+				_re = new RegExp(_keywords, 'ig');
+			}
+		}
+		
+		_this.replace = function(txt) {
+			if (!_keywords || !_re) 
+				return txt;
+			return txt.replace(_re, '**');
+		};
+		
+		_init();
+	};
+})(chatease);
+
+(function(chatease) {
 	chatease.events = {
 		// General Events
 		ERROR: 'ERROR',
@@ -402,6 +427,8 @@ chatease.debug = false;
 			utils.emptyElement(_this.container);
 			
 			_this.config = options;
+			_this.config.id = _this.id;
+			
 			_this.embedder = new chatease.embed(_this);
 			_this.embedder.addGlobalListener(_onEvent);
 			_this.embedder.embed();
@@ -409,9 +436,9 @@ chatease.debug = false;
 			return _this;
 		};
 		
-		_this.setEntity = function(entity, renderMode) {
+		_this.setEntity = function(entity, renderName) {
 			_entity = entity;
-			_this.renderMode = renderMode;
+			_this.renderName = renderName;
 			
 			_this.send = _entity.send;
 			_this.resize = _entity.resize;
@@ -481,6 +508,12 @@ chatease.debug = false;
 
 (function(chatease) {
 	chatease.core.renders.skins = {};
+})(chatease);
+
+(function(chatease) {
+	chatease.core.renders.skins.modes = {
+		DEFAULT: 'def'
+	};
 })(chatease);
 
 (function(chatease) {
@@ -795,6 +828,7 @@ chatease.debug = false;
 		core = chatease.core,
 		renders = core.renders,
 		skins = renders.skins,
+		skinModes = skins.modes,
 		css = utils.css,
 		
 		RENDER_CLASS = 'render',
@@ -822,7 +856,9 @@ chatease.debug = false;
 	renders.def = function(view, config) {
 		var _this = utils.extend(this, new events.eventdispatcher('renders.def')),
 			_defaults = {
-				skin: 'def',
+				skin: {
+					name: skinModes.DEFAULT // 'def'
+				},
 				prefix: 'chat-'
 			},
 			_renderLayer,
@@ -868,7 +904,8 @@ chatease.debug = false;
 			
 			_textInput = utils.createElement('textarea');
 			_textInput.setAttribute('placeholder', '输入聊天内容');
-			_textInput.setAttribute('maxlength', 30);
+			if (_this.config.maxlength) 
+				_textInput.setAttribute('maxlength', _this.config.maxlength);
 			try {
 				_textInput.addEventListener('keypress', _onKeyPress);
 			} catch(e) {
@@ -888,12 +925,12 @@ chatease.debug = false;
 			_setElementIds();
 			
 			try {
-				_skin = new skins[_this.config.skin](_this.config);
+				_skin = new skins[_this.config.skin.name](_this.config);
 			} catch (e) {
-				utils.log('Failed to init skin[' + _this.config.skin + '].');
+				utils.log('Failed to init skin[' + _this.config.skin.name + '].');
 			}
 			if (!_skin) {
-				_this.dispatchEvent(events.CHATEASE_RENDER_ERROR, { message: 'No suitable skin found!', skin: _this.config.skin });
+				_this.dispatchEvent(events.CHATEASE_RENDER_ERROR, { message: 'No suitable skin found!', skin: _this.config.skin.name });
 				return;
 			}
 		}
@@ -963,7 +1000,7 @@ chatease.debug = false;
 			switch (utils.typeOf(data)) {
 				case 'object':
 					message = data.text;
-					if (data.type == 'uni') {
+					if (data.pipe.type == 'uni') {
 						var span = utils.createElement('span');
 						span.innerHTML = '[密语]';
 						box.appendChild(span);
@@ -977,9 +1014,11 @@ chatease.debug = false;
 				case 'string':
 					if (user === '') 
 						break;
-					user = { id: 0, name: user, role: 0 }; // fall through
+					user = { id: 0, name: user, role: 0 };
+					// fall through
 				case 'null':
-					user = { id: 0, name: '[系统]', role: 64 }; // fall through
+					user = { id: 0, name: '[系统]', role: 64 };
+					// fall through
 				case 'object':
 					if (utils.typeOf(user.id) == null) 
 						break;
@@ -1014,7 +1053,7 @@ chatease.debug = false;
 			//box.insertAdjacentHTML(user && user.id == view.user().id ? 'afterbegin' : 'beforeend', message);
 			box.insertAdjacentHTML('beforeend', message);
 			
-			if (_consoleLayer.childNodes.length >= _this.config.maxlog) {
+			if (_consoleLayer.childNodes.length >= _this.config.maxRecords) {
 				_consoleLayer.removeChild(_consoleLayer.childNodes[0]);
 			}
 			_consoleLayer.appendChild(box);
@@ -1074,7 +1113,11 @@ chatease.debug = false;
 		}
 		
 		_this.send = function() {
-			_this.dispatchEvent(events.CHATEASE_VIEW_SEND, { message: _textInput.value, userId: null });
+			_this.dispatchEvent(events.CHATEASE_VIEW_SEND, { data: {
+				text: _textInput.value,
+				type: 'multi',
+				pipe: _this.config.channel
+			}});
 			_this.clearInput();
 		}
 		
@@ -1255,13 +1298,20 @@ chatease.debug = false;
 		};
 		
 		function _setupRender() {
-			switch (model.renderMode) {
+			switch (model.render.name) {
 				case renderModes.DEFAULT:
-					var renderConf = utils.extend(model.getConfig('render'), { id: model.id, width: model.width, height: model.height, maxlog: model.maxlog });
+					var renderConf = utils.extend(model.getConfig('render'), {
+						id: model.id,
+						width: model.width,
+						height: model.height,
+						channel: model.channel,
+						maxlength: model.maxlength,
+						maxRecords: model.maxRecords
+					});
 					_this.render = _render = new renders[renderModes.DEFAULT](_this, renderConf);
 					break;
 				default:
-					_this.dispatchEvent(events.CHATEASE_SETUP_ERROR, { message: 'Unknown render mode!', render: model.renderMode });
+					_this.dispatchEvent(events.CHATEASE_SETUP_ERROR, { message: 'Unknown render mode!', render: model.render.name });
 					break;
 			}
 			
@@ -1360,6 +1410,7 @@ chatease.debug = false;
 		var _this = utils.extend(this, new events.eventdispatcher('core.controller')),
 			_ready = false,
 			_websocket,
+			_filter,
 			_lastSent = 0,
 			_retriesCount = 0;
 		
@@ -1376,23 +1427,33 @@ chatease.debug = false;
 			view.addEventListener(events.CHATEASE_RENDER_ERROR, _onRenderError);
 		}
 		
-		_this.send = function(message, userId) {
+		_this.send = function(data) {
 			if (!_websocket || model.state == states.CLOSED) {
 				_connect();
 				return;
 			}
-			_websocket.send(message.substr(0, 30));
+			
+			var currentTime = new Date().getTime();
+			if (model.interval >= 0 && currentTime - _lastSent < model.interval) {
+				view.show('操作频繁！');
+				return;
+			}
+			_lastSent = currentTime;
+			
+			_websocket.send(JSON.stringify(data));
 		};
 		
 		function _connect() {
 			if (_websocket) 
 				return;
 			
+			var token = utils.getCookie('token');
+			var paramstr = token ? ((model.url.indexOf('?') == -1 ? '?' : '&') + 'token=' + token) : '';
 			try {
 				if (window.WebSocket) {
-					_websocket = new WebSocket(model.url + '?token=' + utils.getCookie('token'));
+					_websocket = new WebSocket(model.url + paramstr);
 				} else if (window.MozWebSocket) {
-					_websocket = new MozWebSocket(model.url + '?token=' + utils.getCookie('token'));
+					_websocket = new MozWebSocket(model.url + paramstr);
 				} else {
 					_websocket = new SockJS(model.url.replace(/^ws/, 'http') + '/sockjs');
 				}
@@ -1402,64 +1463,69 @@ chatease.debug = false;
 			}
 			
 			_websocket.onopen = function(e) {
-				//utils.log('websocket.onopen');
 				model.setState(states.CONNECTED);
 			};
-			_websocket.onmessage = function(e) {
-				//utils.log('websocket.onmessage: ' + e.data);
-				var data;
-				try {
-					data = eval('(' + e.data + ')');
-				} catch (err) {
-					utils.log('Eval failed. \nerr: ' + err + '\ndata: ' + e.data);
-					return;
-				}
-				switch (data.raw) {
-					case 'ident':
-						utils.foreach(data.user, function(k, v) {
-							if (model.user.hasOwnProperty(k)) {
-								model.user[k] = v;
-							}
-						});
-						model.messageInterval = data.user.interval;
-						_this.dispatchEvent(events.CHATEASE_INDENT, data);
-						break;
-					case 'message':
-						view.show(data.data, data.user);
-						_this.dispatchEvent(events.CHATEASE_MESSAGE, data);
-						break;
-					case 'join':
-						view.show(_getUserTitle(data.user.role) + ' ' + data.user.name + ' 进入聊天室。');
-						_this.dispatchEvent(events.CHATEASE_JOIN, data);
-						break;
-					case 'left':
-						view.show(_getUserTitle(data.user.role) + ' ' + data.user.name + ' 已离开。');
-						_this.dispatchEvent(events.CHATEASE_LEFT, data);
-						break;
-					case 'error':
-						var explain = _getErrorExplain(data);
-						if (explain) 
-							view.show(explain);
-						_this.dispatchEvent(events.CHATEASE_ERROR, data);
-						break;
-					default:
-						utils.log('Unknown data type, ignored.');
-						break;
-				}
-			};
+			_websocket.onmessage = _onmessage;
 			_websocket.onerror = function(e) {
-				//utils.log('websocket.onerror');
 				model.setState(states.ERROR);
 			};
 			_websocket.onclose = function(e) {
-				//utils.log('websocket.onclose');
 				model.setState(states.CLOSED);
 			};
 		}
 		
+		function _onmessage(e) {
+			var data;
+			try {
+				data = eval('(' + e.data + ')');
+			} catch (err) {
+				utils.log('Eval failed. \nerr: ' + err + '\ndata: ' + e.data);
+				return;
+			}
+			
+			switch (data.raw) {
+				case 'ident':
+					utils.foreach(data.user, function(k, v) {
+						if (model.user.hasOwnProperty(k)) {
+							model.user[k] = v;
+						}
+					});
+					model.interval = data.user.interval;
+					view.show('加入房间成功！');
+					_this.dispatchEvent(events.CHATEASE_INDENT, data);
+					break;
+				case 'message':
+					try {
+						if (!_filter) 
+							_filter = new utils.filter(model.keywords);
+						data.text = _filter.replace(data.text);
+					} catch (err) { utils.log('Failed to execute filter.'); }
+					view.show(data, data.user);
+					_this.dispatchEvent(events.CHATEASE_MESSAGE, data);
+					break;
+				case 'join':
+					view.show(_getUserTitle(data.user.role) + ' ' + data.user.name + ' 进入聊天室。');
+					_this.dispatchEvent(events.CHATEASE_JOIN, data);
+					break;
+				case 'left':
+					view.show(_getUserTitle(data.user.role) + ' ' + data.user.name + ' 已离开。');
+					_this.dispatchEvent(events.CHATEASE_LEFT, data);
+					break;
+				case 'error':
+					var explain = _getErrorExplain(data);
+					if (explain) 
+						view.show(explain);
+					_this.dispatchEvent(events.CHATEASE_ERROR, data);
+					break;
+				default:
+					utils.log('Unknown data type, ignored.');
+					break;
+			}
+		}
+		
 		function _getErrorExplain(data) {
 			var explain;
-			switch (data.data.code) {
+			switch (data.error.code) {
 				case 400:
 					explain = '错误请求！';
 					break;
@@ -1508,18 +1574,19 @@ chatease.debug = false;
 		function _modelStateHandler(e) {
 			switch (e.state) {
 				case states.CONNECTED:
-					view.show('聊天室已连接。');
+					view.show('聊天室已连接…');
 					_retriesCount = 0;
-					_this.dispatchEvent(events.CHATEASE_CONNECT, { channelId: model.id });
+					_this.dispatchEvent(events.CHATEASE_CONNECT);
+					_this.join(model.channel);
 					break;
 				case states.CLOSED:
 					view.show('聊天室连接已断开！');
-					_this.dispatchEvent(events.CHATEASE_CLOSE, { channelId: model.id });
+					_this.dispatchEvent(events.CHATEASE_CLOSE, { channel: { id: model.channel } });
 					_reconnect();
 					break;
 				case states.ERROR:
 					view.show('聊天室异常！');
-					_this.dispatchEvent(events.CHATEASE_ERROR, { message: 'Chat room error!', channelId: model.id });
+					_this.dispatchEvent(events.CHATEASE_ERROR, { message: 'Chat room error!', channel: { id: model.channel } });
 					break;
 				default:
 					_this.dispatchEvent(events.CHATEASE_ERROR, { message: 'Unknown model state!', state: e.state });
@@ -1561,19 +1628,27 @@ chatease.debug = false;
 			}
 		}
 		
+		_this.join = function(channelId) {
+			_this.send({
+				cmd: 'join',
+				channel: { id: channelId }
+			});
+		};
+		
 		function _onSend(e) {
-			if (!e || !e.message) {
+			e.data.text = utils.trim(model.maxlength ? e.data.text.substr(0, model.maxlength) : e.data.text);
+			if (!e.data.text) {
 				view.show('请输入内容！');
 				return;
 			}
-			
-			var currentTime = new Date().getTime();
-			if (model.messageInterval >= 0 && currentTime - _lastSent < model.messageInterval) {
-				view.show('操作频繁！');
-				return;
-			}
-			_lastSent = currentTime;
-			_this.send(e.message, e.userId);
+			_this.send({
+				cmd: 'message',
+				text: e.data.text,
+				pipe: {
+					type: e.data.type,
+					id: e.data.pipe
+				}
+			});
 		}
 		
 		function _onViewShieldMsg(e) {
@@ -1617,10 +1692,9 @@ chatease.debug = false;
 	
 	var embed = chatease.embed = function(api) {
 		var _this = utils.extend(this, new events.eventdispatcher('embed')),
-			_config = new embed.config(api.config),
+			_config = {},
 			_errorOccurred = false,
 			_embedder = null;
-		_config.id = api.id;
 		
 		function _init() {
 			utils.foreach(_config.events, function(e, cb) {
@@ -1633,19 +1707,12 @@ chatease.debug = false;
 		
 		_this.embed = function() {
 			try {
-				_embedder = new embed[_config.renderMode](api, _config);
+				_config = new embed.config(api.config);
+				_embedder = new embed.embedder(api, _config);
 			} catch (e) {
-				utils.log('Render [' + _config.renderMode + '] not found.');
-			}
-			
-			if (!_embedder || !_embedder.supports()) {
-				if (_config.fallback) {
-					_config.renderMode = _config.renderMode = renderModes.DEFAULT;
-					_embedder = new embed.def(api, _config);
-				} else {
-					_this.dispatchEvent(events.CHATEASE_SETUP_ERROR, { message: 'No suitable render found!', render: _config.renderMode, fallback: _config.fallback });
-					return;
-				}
+				utils.log('Failed to init embedder!');
+				_this.dispatchEvent(events.CHATEASE_SETUP_ERROR, { message: 'Failed to init embedder!', render: _config.render.name, fallback: _config.fallback });
+				return;
 			}
 			_embedder.addGlobalListener(_onEvent);
 			_embedder.embed();
@@ -1687,19 +1754,32 @@ chatease.debug = false;
 	var utils = chatease.utils,
 		events = chatease.events,
 		embed = chatease.embed,
-		renderModes = chatease.core.renders.modes;
+		renderModes = chatease.core.renders.modes,
+		skinModes = chatease.core.renders.skins.modes;
 	
 	embed.config = function(config) {
 		var _defaults = {
 			url: 'ws://' + window.location.host + '/websocket/websck',
 			width: 300,
 			height: 450,
-	 		renderMode: renderModes.DEFAULT, // 'def'
+			
+			channel: 1,
+	 		
+	 		maxlength: 30, // 0: no limit, uint: n bytes
+	 		interval: 0, // ms
+	 		
+	 		maxRetries: 0, // -1: never, 0: always, uint: n times
 	 		retryDelay: 3000, // ms
-			maxRetries: 0, // -1: never, 0: always, uint: n times
-			messageInterval: 0, // ms
-			maxlog: 50,
-			fallback: true
+			
+			render: {
+				name: renderModes.DEFAULT, // 'def'
+				skin: {
+					name: skinModes.DEFAULT // 'def'
+				}
+			},
+			
+			keywords: '',
+			maxRecords: 50
 		},
 		_config = utils.extend({}, _defaults, config);
 		
@@ -1718,15 +1798,14 @@ chatease.debug = false;
 		core = chatease.core,
 		renderModes = core.renders.modes;
 	
-	embed.def = function(api, config) {
-		var _this = utils.extend(this, new events.eventdispatcher('embed.def'));
-		_this.renderMode = renderModes.DEFAULT;
+	embed.embedder = function(api, config) {
+		var _this = utils.extend(this, new events.eventdispatcher('embed.embedder'));
 		
 		_this.embed = function() {
 			var entity = new core.entity(config);
 			entity.addGlobalListener(_onEvent);
 			entity.setup();
-			api.setEntity(entity, config.renderMode);
+			api.setEntity(entity, config.render.name);
 		};
 		
 		function _onEvent(e) {
@@ -1736,9 +1815,5 @@ chatease.debug = false;
 		function _forward(e) {
 			_this.dispatchEvent(e.type, e);
 		}
-        
-		_this.supports = function() {
-			return true;
-		};
 	};
 })(chatease);
