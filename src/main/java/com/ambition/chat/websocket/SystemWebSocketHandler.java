@@ -71,8 +71,7 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 			if (channel == null || channel.has("id") == false) {
 				break;
 			}
-			String channelId = channel.get("id").toString();
-			onJoin(session, channelId);
+			onJoin(session, data);
 			break;
 		case "message":
 			JSONObject pipe = (JSONObject) data.get("pipe");
@@ -87,19 +86,17 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 		}
 	}
 	
-	private void onJoin(WebSocketSession session, String channelId) throws Exception {
+	private void onJoin(WebSocketSession session, JSONObject data) throws Exception {
 		// TODO Auto-generated method stub
-		Map<String, Object> attributes = session.getAttributes();
-		JSONObject userinfo = null;
-		if (attributes.containsKey(Constants.TOKEN_ID) == true) {
-			String token = (String) attributes.get(Constants.TOKEN_ID);
-			userinfo = HttpUserInfoLoader.load(token);
+		String channelId = ((JSONObject) data.get("channel")).get("id").toString();
+		String tokenId = data.has("token") ? data.get("token").toString() : "";
+		JSONObject userinfo = HttpUserInfoLoader.load(channelId, tokenId);
+		if (userinfo == null || !userinfo.has("status") || (Boolean) userinfo.get("status") == false) {
+			
+			logger.error("Invalid user info.");
+			return;
 		}
-		if (userinfo == null) {
-			userinfo = new JSONObject();
-			userinfo.put("status", false);
-		}
-		if ((Boolean) userinfo.get("status") == false) {
+		if (userinfo.has("info") == false) {
 			int userId = (int) Math.floor(Math.random() * 100) * -1;
 			
 			JSONObject info = new JSONObject();
@@ -107,10 +104,12 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 			info.put("name", "сн©м" + Math.abs(userId));
 			info.put("type", -1);
 			
-			JSONObject channel = new JSONObject();
-			channel.put("id", 3);
-			
 			userinfo.put("info", info);
+		}
+		if (userinfo.has("channel") == false) {
+			JSONObject channel = new JSONObject();
+			channel.put("id", channelId);
+			
 			userinfo.put("channel", channel);
 		}
 		
@@ -119,6 +118,7 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 		String nickname = (String) ((JSONObject) userinfo.get("info")).get("name");
 		int usertype = (int) ((JSONObject) userinfo.get("info")).get("type");
 		
+		Map<String, Object> attributes = session.getAttributes();
 		attributes.put(Constants.SESSION_USERID, userId);
 		attributes.put(Constants.SESSION_NICKNAME, nickname);
 		attributes.put(Constants.SESSION_USERTYPE, usertype);
@@ -405,12 +405,13 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 	
 	static class HttpUserInfoLoader {
 		
-		public static JSONObject load(String token) {
+		public static JSONObject load(String channelId, String tokenId) {
 			HttpClient httpclient = new DefaultHttpClient();
 			
-			HttpGet request = new HttpGet(USERINFO_REQ_URL + "?token=" + token);
+			HttpGet request = new HttpGet(USERINFO_REQ_URL + "?channel=" + channelId + "&token=" + tokenId);
 			
 			/*JSONObject param = new JSONObject();
+			param.put("channelId", channelId);
 			param.put("uniqueKey", token);
 			
 			HttpPost request = new HttpPost(USERINFO_REQ_URL);

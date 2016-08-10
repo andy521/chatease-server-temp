@@ -29,18 +29,7 @@ public class WebSocketHandshakeInterceptor implements HandshakeInterceptor {
 		if (request instanceof ServletServerHttpRequest) {
 			ServletServerHttpRequest servletRequest = (ServletServerHttpRequest) request;
 			HttpSession session = servletRequest.getServletRequest().getSession(false);
-			if (session == null) {
-				Map<String, String[]> params = servletRequest.getServletRequest().getParameterMap();
-				if (params != null && params.containsKey("token")) {
-					String token = params.get("token")[0];
-					attributes.put(Constants.TOKEN_ID, token);
-					logger.warn("Set token=" + token + " into attributes.");
-				} else {
-					logger.warn("No token found before handshake.");
-				}
-			} else {
-				logger.warn("Sessions found before handshake.");
-			}
+			logger.warn("Sessions " + (session == null ? "not " : "") + "found before handshake.");
 		}
 		return true;
 	}
