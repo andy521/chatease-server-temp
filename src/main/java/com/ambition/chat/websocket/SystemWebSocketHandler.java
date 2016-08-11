@@ -82,7 +82,7 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 			onMessage(session, data);
 			break;
 		default:
-			
+			sendError(session, 404);
 		}
 	}
 	
@@ -91,9 +91,15 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 		String channelId = ((JSONObject) data.get("channel")).get("id").toString();
 		String tokenId = data.has("token") ? data.get("token").toString() : "";
 		JSONObject userinfo = HttpUserInfoLoader.load(channelId, tokenId);
-		if (userinfo == null || !userinfo.has("status") || (Boolean) userinfo.get("status") == false) {
-			
-			logger.error("Invalid user info.");
+		if (userinfo == null) {
+			userinfo = new JSONObject();
+			logger.warn("Unable to get user info, fall through.");
+		} else if (!userinfo.has("status") || (Boolean) userinfo.get("status") == false) {
+			sendError(session, 403, new JSONObject()
+				.put("method", data.get("cmd"))
+				.put("channel", data.get("channel"))
+			);
+			logger.warn("Permission denied while joining channel " + channelId);
 			return;
 		}
 		if (userinfo.has("info") == false) {
@@ -190,18 +196,10 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 		if (lastsent > 0) {
 			int interval = getSendingInterval((int) usertype);
 			if (interval < 0 || currentTime - (int) lastsent < interval) {
-				JSONObject error = new JSONObject();
-				error.put("code", 409);
-				error.put("explain", "Conflict");
-				
-				JSONObject errordata = new JSONObject();
-				errordata.put("raw", "error");
-				errordata.put("text", text);
-				errordata.put("error", error);
-				errordata.put("user", user);
-				errordata.put("pipe", pipe);
-				
-				session.sendMessage(new TextMessage(errordata.toString()));
+				sendError(session, 409, new JSONObject()
+					.put("text", text)
+					.put("pipe", pipe)
+				);
 				logger.warn("Frequency limited while handling message from "
 						+ "user { id: " + userId + ", name: " + nickname + " } "
 						+ "to pipe { type: " + pipetype + ", id: " + pipeId + " }.");
@@ -330,10 +328,24 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 	
 	private void sendError(WebSocketSession session, int code) throws Exception {
 		// TODO Auto-generated method stub
+		sendError(session, code, null);
+	}
+	
+	private void sendError(WebSocketSession session, int code, JSONObject params) throws Exception {
+		// TODO Auto-generated method stub
 		String explain = "";
 		switch (code) {
 		case 400:
 			explain = "Bad Request";
+			break;
+		case 401:
+			explain = "Unauthorized";
+			break;
+		case 403:
+			explain = "Forbidden";
+			break;
+		case 404:
+			explain = "Not Found";
 			break;
 		case 409:
 			explain = "Conflict";
@@ -350,6 +362,13 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 		JSONObject errordata = new JSONObject();
 		errordata.put("raw", "error");
 		errordata.put("error", error);
+		if (params != null) {
+			Iterator<String> it = params.keys();
+			while (it.hasNext()) {
+				String key = it.next();
+				errordata.put(key, params.get(key));
+			}
+		}
 		
 		session.sendMessage(new TextMessage(errordata.toString()));
 	}
