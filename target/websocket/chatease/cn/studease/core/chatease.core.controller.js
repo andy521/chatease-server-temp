@@ -9,8 +9,9 @@
 			_ready = false,
 			_websocket,
 			_filter,
-			_lastSent = 0,
-			_retriesCount = 0;
+			_retriesCount = 0,
+			_intervals = {},
+			_lastsents = {};
 		
 		function _init() {
 			model.addEventListener(events.CHATEASE_STATE, _modelStateHandler);
@@ -31,12 +32,19 @@
 				return;
 			}
 			
+			if (data == null || data.hasOwnProperty('cmd') == false 
+					|| data.hasOwnProperty('channel') == false || data.channel.hasOwnProperty('id') == false) {
+				view.show('错误请求！');
+				return;
+			}
+			
+			var channelId = data.channel.id;
 			var currentTime = new Date().getTime();
-			if (model.interval >= 0 && currentTime - _lastSent < model.interval) {
+			if (_lastsents[channelId] > 0 && currentTime - _lastsents[channelId] < _intervals[channelId]) {
 				view.show('操作频繁！');
 				return;
 			}
-			_lastSent = currentTime;
+			_lastsents[channelId] = currentTime;
 			
 			_websocket.send(JSON.stringify(data));
 		};
@@ -86,7 +94,7 @@
 							model.user[k] = v;
 						}
 					});
-					model.interval = data.user.interval;
+					_intervals[data.channel.id] = data.user.interval;
 					view.show('加入房间成功！');
 					_this.dispatchEvent(events.CHATEASE_INDENT, data);
 					break;
@@ -134,6 +142,9 @@
 				case 404:
 					explain = '未知请求！';
 					break;
+				case 406:
+					explain = '非法请求！';
+					break;
 				case 409:
 					explain = '操作频繁！';
 					break;
@@ -173,7 +184,9 @@
 					view.show('聊天室已连接…');
 					_retriesCount = 0;
 					_this.dispatchEvent(events.CHATEASE_CONNECT);
-					_this.join(model.channel);
+					for (var i = 0; i < model.channel.length; i++) {
+						_this.join(model.channel[i]);
+					}
 					break;
 				case states.CLOSED:
 					view.show('聊天室连接已断开！');
@@ -231,7 +244,7 @@
 			};
 			var token = utils.getCookie('token');
 		  if (token) {
-		  	obj.token = token[1];
+		  	obj.token = token;
 		  }
 			_this.send(obj);
 		};
@@ -245,9 +258,9 @@
 			_this.send({
 				cmd: 'message',
 				text: e.data.text,
-				pipe: {
-					type: e.data.type,
-					id: e.data.pipe
+				type: e.data.type,
+				channel: {
+					id: e.data.channel
 				}
 			});
 		}

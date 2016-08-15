@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -59,76 +58,85 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 		} catch (Exception e) {
 			logger.error("Failed to parse message: " + msgstr + ". Error: \r\t" + e.toString());
 		}
-		if (data == null || data.has("cmd") == false) {
+		if (data == null || data.has("cmd") == false 
+				|| data.has("channel") == false || data.getJSONObject("channel").has("id") == false) {
 			sendError(session, 400);
+			logger.warn("Bad message format.");
 			return;
 		}
 		
-		String cmd = (String) data.get("cmd");
+		String channelId = data.getJSONObject("channel").get("id").toString();
+		UserAttributes attrs = getAttributes(session);
+		if (attrs.checkInterval(channelId) == false) {
+			sendError(session, 409, data);
+			logger.warn("Frequency limited while handling cmd=" + data.getString("cmd") + ".");
+			return;
+		}
+		
+		String cmd = data.getString("cmd");
 		switch (cmd) {
 		case "join":
-			JSONObject channel = (JSONObject) data.get("channel");
-			if (channel == null || channel.has("id") == false) {
-				break;
-			}
 			onJoin(session, data);
 			break;
 		case "message":
-			JSONObject pipe = (JSONObject) data.get("pipe");
-			if (data.has("text") == false 
-					|| pipe == null || pipe.has("type") == false || pipe.has("id") == false) {
+			if (data.has("text") == false || data.has("type") == false) {
+				sendError(session, 400);
+				logger.warn("Bad request while handling cmd=" + cmd + ".");
 				break;
 			}
 			onMessage(session, data);
 			break;
 		default:
-			sendError(session, 404);
+			sendError(session, 404, data);
+			logger.warn("Command=" + cmd + " not found.");
 		}
 	}
 	
 	private void onJoin(WebSocketSession session, JSONObject data) throws Exception {
 		// TODO Auto-generated method stub
-		String channelId = ((JSONObject) data.get("channel")).get("id").toString();
+		String channelId = data.getJSONObject("channel").get("id").toString();
 		String tokenId = data.has("token") ? data.get("token").toString() : "";
-		JSONObject userinfo = HttpUserInfoLoader.load(channelId, tokenId);
-		if (userinfo == null) {
-			userinfo = new JSONObject();
-			logger.warn("Unable to get user info, fall through.");
-		} else if (!userinfo.has("status") || (Boolean) userinfo.get("status") == false) {
-			sendError(session, 403, new JSONObject()
-				.put("method", data.get("cmd"))
-				.put("channel", data.get("channel"))
-			);
-			logger.warn("Permission denied while joining channel " + channelId);
-			return;
+		JSONObject logindata = HttpUserInfoLoader.load(channelId, tokenId);
+		if (logindata == null) {
+			logindata = new JSONObject();
+			logger.error("Unable to get user info, fall through.");
 		}
-		if (userinfo.has("info") == false) {
+		if (logindata.has("user") == false) {
 			int userId = (int) Math.floor(Math.random() * 100) * -1;
 			
-			JSONObject info = new JSONObject();
-			info.put("id", userId);
-			info.put("name", "游客" + Math.abs(userId));
-			info.put("type", -1);
+			JSONObject user = new JSONObject();
+			user.put("id", userId);
+			user.put("name", "游客" + Math.abs(userId));
+			user.put("type", -1);
 			
-			userinfo.put("info", info);
+			logindata.put("user", user);
 		}
-		if (userinfo.has("channel") == false) {
+		if (logindata.has("channel") == false) {
 			JSONObject channel = new JSONObject();
 			channel.put("id", channelId);
+			channel.put("role", -1);
+			channel.put("access", 3);
 			
-			userinfo.put("channel", channel);
+			logindata.put("channel", channel);
 		}
 		
 		// Add user into channel.
-		int userId = (int) ((JSONObject) userinfo.get("info")).get("id");
-		String nickname = (String) ((JSONObject) userinfo.get("info")).get("name");
-		int usertype = (int) ((JSONObject) userinfo.get("info")).get("type");
+		JSONObject userinfo = logindata.getJSONObject("user");
+		int userId = userinfo.getInt("id");
+		String nickname = userinfo.getString("name");
+		JSONObject channelinfo = logindata.getJSONObject("channel");
+		int role = channelinfo.getInt("role");
+		int access = channelinfo.getInt("access");
 		
-		Map<String, Object> attributes = session.getAttributes();
-		attributes.put(Constants.SESSION_USERID, userId);
-		attributes.put(Constants.SESSION_NICKNAME, nickname);
-		attributes.put(Constants.SESSION_USERTYPE, usertype);
-		attributes.put(Constants.SESSION_CHANNELID, channelId);
+		if (access <= 0) {
+			sendError(session, 403, data);
+			logger.warn("Permission denied while joining channel " + channelId);
+			return;
+		}
+		
+		UserAttributes attrs = getAttributes(session);
+		attrs.setInfo(userId, nickname);
+		attrs.setAttributes(channelId, role, access);
 		
 		add(session, channelId);
 		
@@ -136,8 +144,9 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 		JSONObject user = new JSONObject();
 		user.put("id", userId);
 		user.put("name", nickname);
-		user.put("role", usertype);
-		user.put("interval", getSendingInterval((int) usertype));
+		user.put("role", role);
+		user.put("access", attrs.getAccess(channelId));
+		user.put("interval", attrs.getInterval(channelId));
 		
 		JSONObject channel = new JSONObject();
 		channel.put("id", channelId);
@@ -150,7 +159,8 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 		session.sendMessage(new TextMessage(identdata.toString()));
 		
 		// Broadcast joining message in the channel.
-		if ((int) usertype > 0) {
+		if (attrs.getRole(channelId) > 0) {
+			user.remove("access");
 			user.remove("interval");
 			
 			JSONObject joindata = new JSONObject();
@@ -165,117 +175,108 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 	
 	private void onMessage(WebSocketSession session, JSONObject data) throws Exception {
 		// TODO Auto-generated method stub
-		Map<String, Object> attributes = session.getAttributes();
-		if (attributes.containsKey(Constants.SESSION_USERID) == false) {
+		UserAttributes attrs = getAttributes(session);
+		if (attrs.logined() == false) {
+			sendError(session, 401);
+			if (session.isOpen()) {
+				session.close();
+			}
 			logger.error("User ID not found while handling message: " + data.getString("text"));
 			return;
 		}
 		
-		int userId = (int) attributes.get(Constants.SESSION_USERID);
-		String nickname = (String) attributes.get(Constants.SESSION_NICKNAME);
-		int usertype = (int) attributes.get(Constants.SESSION_USERTYPE);
+		JSONObject channel = data.getJSONObject("channel");
+		String channelId = channel.get("id").toString();
+		if (attrs.joined(channelId) == false) {
+			sendError(session, 406);
+			logger.error("Channel=" + channelId + " not joined while handling message: " + data.getString("text"));
+			return;
+		}
 		
-		JSONObject pipe = (JSONObject) data.get("pipe");
-		String pipetype = (String) pipe.get("type");
-		String pipeId = pipe.get("id").toString();
+		int userId = attrs.getId();
+		String nickname = attrs.getName();
+		int role = attrs.getRole(channelId);
 		
 		String text = data.getString("text");
-		
-		int lastsent = 0;
-		if (attributes.containsKey(Constants.SESSION_LASTSENT)) {
-			lastsent = (int) attributes.get(Constants.SESSION_LASTSENT);
-		}
+		String msgtype = data.getString("type");
 		
 		JSONObject user = new JSONObject();
 		user.put("id", userId);
 		user.put("name", nickname);
-		user.put("role", usertype);
-		
-		Date now = new Date();
-		int currentTime = ((Number) now.getTime()).intValue();
-		if (lastsent > 0) {
-			int interval = getSendingInterval((int) usertype);
-			if (interval < 0 || currentTime - (int) lastsent < interval) {
-				sendError(session, 409, new JSONObject()
-					.put("text", text)
-					.put("pipe", pipe)
-				);
-				logger.warn("Frequency limited while handling message from "
-						+ "user { id: " + userId + ", name: " + nickname + " } "
-						+ "to pipe { type: " + pipetype + ", id: " + pipeId + " }.");
-				return;
-			}
-		}
-		attributes.put(Constants.SESSION_LASTSENT, currentTime);
+		user.put("role", role);
 		
 		JSONObject msgdata = new JSONObject();
 		msgdata.put("raw", "message");
 		msgdata.put("text", text);
+		msgdata.put("type", msgtype);
 		msgdata.put("user", user);
-		msgdata.put("pipe", pipe);
+		msgdata.put("channel", channel);
 		
 		TextMessage message = new TextMessage(msgdata.toString());
-		if (pipetype.equals("uni")) {
-			send2user(message, pipeId, userId);
+		int uniId = 0;
+		if (msgtype.equals("uni")) {
+			uniId = data.getJSONObject("user").getInt("id");
+			send2user(message, channelId, uniId);
 		} else {
-			send2all(message, pipeId);
+			send2all(message, channelId);
 		}
 		logger.info("User { id: " + userId + ", name: " + nickname + " } "
-				+ "sent message=" + text + " to " + (pipetype.equals("uni") ? "user" : "channel") + " " + pipeId);
+				+ "sent message=" + text + " "
+				+ "to " + (msgtype.equals("uni") ? "user " + uniId : "channel " + channelId) + ".");
 	}
 	
 	public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
 		// TODO Auto-generated method stub
-		Map<String, Object> attributes = session.getAttributes();
-		if (attributes.containsKey(Constants.SESSION_USERID) == true) {
-			int userId = (int) attributes.get(Constants.SESSION_USERID);
-			String nickname = (String) attributes.get(Constants.SESSION_NICKNAME);
-			String channelId = (String) attributes.get(Constants.SESSION_CHANNELID);
+		UserAttributes attrs = getAttributes(session);
+		if (attrs.logined() == true) {
+			int userId = attrs.getId();
+			String nickname = attrs.getName();
+			String channelIds = attrs.getChannelIds().toString();
 			logger.warn("User { id: " + userId + ", name: " + nickname + " } "
-					+ " in channel " + channelId + " transport error: \r\t" + exception.toString());
+					+ " in channel " + channelIds + " transport error: \r\t" + exception.toString());
 		}
 		
 		if (session.isOpen()) {
-			try {
-				session.close();
-			} catch (Exception e) {
-				logger.error("Error while handling transport error. Error: \r\t" + e.toString());
-			}
+			session.close();
 		}
 	}
 	
 	public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
 		// TODO Auto-generated method stub
-		Map<String, Object> attributes = session.getAttributes();
-		if (attributes.containsKey(Constants.SESSION_USERID) == false) {
+		UserAttributes attrs = getAttributes(session);
+		if (attrs.logined() == false) {
 			logger.warn("User id not found while connection closed.");
 			return;
 		}
-		int userId = (int) attributes.get(Constants.SESSION_USERID);
-		String nickname = (String) attributes.get(Constants.SESSION_NICKNAME);
-		int usertype = (int) attributes.get(Constants.SESSION_USERTYPE);
-		String channelId = (String) attributes.get(Constants.SESSION_CHANNELID);
+		int userId = attrs.getId();
+		String nickname = attrs.getName();
 		
-		if ((int) usertype > 0) {
-			JSONObject user = new JSONObject();
-			user.put("id", userId);
-			user.put("name", nickname);
-			user.put("role", usertype);
-			
-			JSONObject channel = new JSONObject();
-			channel.put("id", channelId);
-			
-			JSONObject leftdata = new JSONObject();
-			leftdata.put("raw", "left");
-			leftdata.put("user", user);
-			leftdata.put("channel", channel);
-			
-			send2all(new TextMessage(leftdata.toString()), channelId);
-        }
-		
-		remove(session);
-		logger.info("User { id: " + userId + ", name: " + nickname + " } "
-				+ "left channel " + channelId + " with " + status.getCode());
+		JSONObject channels = attrs.getChannels();
+		Iterator<String> it = channels.keys();
+		while (it.hasNext()) {
+			String channelId = it.next();
+			int role = channels.getJSONObject(channelId).getInt("role");
+			if (role > 0) {
+				JSONObject user = new JSONObject();
+				user.put("id", userId);
+				user.put("name", nickname);
+				user.put("role", role);
+				
+				JSONObject channel = new JSONObject();
+				channel.put("id", channelId);
+				
+				JSONObject leftdata = new JSONObject();
+				leftdata.put("raw", "left");
+				leftdata.put("user", user);
+				leftdata.put("channel", channel);
+				
+				send2all(new TextMessage(leftdata.toString()), channelId);
+				
+				remove(session, channelId);
+				logger.info("User { id: " + userId + ", name: " + nickname + " } "
+						+ "left channel " + channelId + " with " + status.getCode());
+	        }
+		}
 	}
 	
 	
@@ -347,6 +348,9 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 		case 404:
 			explain = "Not Found";
 			break;
+		case 406:
+			explain = "Not Acceptable";
+			break;
 		case 409:
 			explain = "Conflict";
 			break;
@@ -373,18 +377,16 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 		session.sendMessage(new TextMessage(errordata.toString()));
 	}
 	
-	private int getSendingInterval(long usertype) {
-		int interval = -1;
-		if (usertype < 0) {
-			interval = 3000;
-		} else if (usertype == 0) {
-			interval = 2000;
-		} else if (usertype >= 8) {
-			interval = 0;
-		} else if ((usertype & 0x07) > 0) {
-			interval = 1000;
+	private UserAttributes getAttributes(WebSocketSession session) {
+		Map<String, Object> attributes = session.getAttributes();
+		UserAttributes attrs;
+		if (attributes.containsKey("userattrs") == false) {
+			attrs = new UserAttributes();
+			attributes.put("userattrs", attrs);
+		} else {
+			attrs = (UserAttributes) attributes.get("userattrs");
 		}
-		return interval;
+		return attrs;
 	}
 	
 	private void add(WebSocketSession session, String channelId) {
@@ -396,12 +398,7 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 		users.add(session);
 	}
 	
-	private void remove(WebSocketSession session) {
-		Map<String, Object> attributes = session.getAttributes();
-		if (attributes.containsKey(Constants.SESSION_CHANNELID) == false) {
-			return;
-		}
-		String channelId = (String) attributes.get(Constants.SESSION_CHANNELID);
+	private void remove(WebSocketSession session, String channelId) {
 		List<WebSocketSession> users = groups.get(channelId);
 		if (users == null) {
 			return;

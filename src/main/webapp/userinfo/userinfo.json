@@ -1,11 +1,12 @@
 {
 	"status": true,
-	"info": {
-		"id": 1,
-		"name": "TonyLau",
-		"type": 1
+	"user": {
+		"id": 3,
+		"name": "TonyLau3"
 	},
 	"channel": {
-		"id": 1
+		"id": 1,
+		"role": 8,
+		"access": 3
 	}
 }

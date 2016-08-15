@@ -3,3 +3,5 @@ com\ambition\chat\websocket\WebSocketConfig.class
 com\ambition\chat\websocket\SystemWebSocketHandler$HttpUserInfoLoader.class
 com\ambition\chat\websocket\Constants.class
 com\ambition\chat\websocket\WebSocketHandshakeInterceptor.class
+com\ambition\chat\websocket\UserAttributes.class
+com\ambition\chat\websocket\UserAttributes$ChannelAttributes.class

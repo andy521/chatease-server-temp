@@ -42,8 +42,8 @@
 		var chat = chatease('chatwrap').setup({
 			width: 300,
 			height: 464,
-			url: 'ws://192.168.1.202/websocket/websck',
-			channel: 1,
+			url: 'ws://localhost/websocket/websck',
+			channel: 2,
 			keywords: keywords,
 			events: {
 				onReady: function(e) {
@@ -54,6 +54,8 @@
 				},
 				onIdent: function(e) {
 					cblog('onIdent', e.user.name + '[' + e.user.id + ', ' + e.user.role + ', ' + e.user.interval + '] in channel ' + e.channel.id + '.');
+					//if (e.channel.id != 2) 
+						//chat.join(2);
 				},
 				onMessage: function(e) {
 					//cblog('onMessage', e.user.name + ': ' + e.data);
