@@ -9,9 +9,7 @@
 			_ready = false,
 			_websocket,
 			_filter,
-			_retriesCount = 0,
-			_intervals = {},
-			_lastsents = {};
+			_retriesCount = 0;
 		
 		function _init() {
 			model.addEventListener(events.CHATEASE_STATE, _modelStateHandler);
@@ -32,19 +30,18 @@
 				return;
 			}
 			
-			if (data == null || data.hasOwnProperty('cmd') == false 
+			if (utils.typeOf(data) != 'object' || data.hasOwnProperty('cmd') == false 
 					|| data.hasOwnProperty('channel') == false || data.channel.hasOwnProperty('id') == false) {
-				view.show('错误请求！');
+				_onError(400, data);
 				return;
 			}
 			
 			var channelId = data.channel.id;
-			var currentTime = new Date().getTime();
-			if (_lastsents[channelId] > 0 && currentTime - _lastsents[channelId] < _intervals[channelId]) {
-				view.show('操作频繁！');
+			var channel = model.getChannel(channelId);
+			if (channel.setActive() == false) {
+				_onError(409, data);
 				return;
 			}
-			_lastsents[channelId] = currentTime;
 			
 			_websocket.send(JSON.stringify(data));
 		};
@@ -53,6 +50,7 @@
 			if (_websocket) 
 				return;
 			
+			view.show('聊天室连接中…');
 			try {
 				if (window.WebSocket) {
 					_websocket = new WebSocket(model.url);
@@ -88,14 +86,16 @@
 			}
 			
 			switch (data.raw) {
-				case 'ident':
+				case 'identity':
 					utils.foreach(data.user, function(k, v) {
 						if (model.user.hasOwnProperty(k)) {
 							model.user[k] = v;
 						}
 					});
-					_intervals[data.channel.id] = data.user.interval;
-					view.show('加入房间成功！');
+					var channel = model.getChannel(data.channel.id);
+					channel.setProperties(data.channel.role, data.channel.state);
+					
+					view.show('已加入房间（' + data.channel.id + '）！');
 					_this.dispatchEvent(events.CHATEASE_INDENT, data);
 					break;
 				case 'message':
@@ -103,33 +103,53 @@
 						if (!_filter) 
 							_filter = new utils.filter(model.keywords);
 						data.text = _filter.replace(data.text);
-					} catch (err) { utils.log('Failed to execute filter.'); }
-					view.show(data, data.user);
+					} catch (err) {
+						utils.log('Failed to execute filter.');
+					}
+					
+					view.show(data, utils.extend({ role: data.channel.role, state: data.channel.state}, data.user));
 					_this.dispatchEvent(events.CHATEASE_MESSAGE, data);
 					break;
 				case 'join':
-					view.show(_getUserTitle(data.user.role) + ' ' + data.user.name + ' 进入聊天室。');
+					view.show(_getUserTitle(data.channel.role) + ' ' + data.user.name + ' 进入聊天室。');
 					_this.dispatchEvent(events.CHATEASE_JOIN, data);
 					break;
 				case 'left':
-					view.show(_getUserTitle(data.user.role) + ' ' + data.user.name + ' 已离开。');
+					view.show(_getUserTitle(data.channel.role) + ' ' + data.user.name + ' 已离开。');
 					_this.dispatchEvent(events.CHATEASE_LEFT, data);
 					break;
 				case 'error':
-					var explain = _getErrorExplain(data);
-					if (explain) 
-						view.show(explain);
-					_this.dispatchEvent(events.CHATEASE_ERROR, data);
+					_onError(data.error.code, data);
 					break;
 				default:
-					utils.log('Unknown data type, ignored.');
+					utils.log('Unknown data type: ' + data.raw + ', ignored.');
 					break;
 			}
 		}
 		
-		function _getErrorExplain(data) {
-			var explain;
-			switch (data.error.code) {
+		function _onError(code, params) {
+			var explain = _getErrorExplain(code);
+			if (explain) 
+				view.show(explain);
+			
+			var data = {
+				raw: 'error',
+				error: {
+					code: code,
+					explain: explain
+				}
+			};
+			utils.foreach(params, function(k, v) {
+				if (k != 'cmd' && k != 'raw' && k != 'error') {
+					data[k] = v;
+				}
+			});
+			_this.dispatchEvent(events.CHATEASE_ERROR, data);
+		}
+		
+		function _getErrorExplain(code) {
+			var explain = '';
+			switch (code) {
 				case 400:
 					explain = '错误请求！';
 					break;

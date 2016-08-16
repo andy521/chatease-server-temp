@@ -10,7 +10,7 @@
 			url: 'ws://' + window.location.host + '/websocket/websck',
 			width: 300,
 			height: 450,
-			channel: [1],
+			channel: 1,
 	 		maxlength: 30, // 0: no limit, uint: n bytes
 	 		maxRetries: 0, // -1: never, 0: always, uint: n times
 	 		retryDelay: 3000, // ms

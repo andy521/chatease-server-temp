@@ -1,5 +1,8 @@
-D:\WorkSpace\MyEclipse\chatease-server\src\main\java\com\ambition\chat\websocket\UserAttributes.java
+D:\WorkSpace\MyEclipse\chatease-server\src\main\java\com\ambition\chat\utils\HttpUserInfoLoader.java
 D:\WorkSpace\MyEclipse\chatease-server\src\main\java\com\ambition\chat\websocket\SystemWebSocketHandler.java
+D:\WorkSpace\MyEclipse\chatease-server\src\main\java\com\ambition\chat\common\Channel.java
+D:\WorkSpace\MyEclipse\chatease-server\src\main\java\com\ambition\chat\common\User.java
 D:\WorkSpace\MyEclipse\chatease-server\src\main\java\com\ambition\chat\websocket\WebSocketHandshakeInterceptor.java
-D:\WorkSpace\MyEclipse\chatease-server\src\main\java\com\ambition\chat\websocket\Constants.java
+D:\WorkSpace\MyEclipse\chatease-server\src\main\java\com\ambition\chat\utils\Utils.java
+D:\WorkSpace\MyEclipse\chatease-server\src\main\java\com\ambition\chat\common\Constants.java
 D:\WorkSpace\MyEclipse\chatease-server\src\main\java\com\ambition\chat\websocket\WebSocketConfig.java
