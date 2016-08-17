@@ -13,7 +13,7 @@ This is a server-side sample project for [chatease](https://github.com/studease/
 
 > You may have an user login system, and need to control the chatting behavior. Then supply an interface to verify and return the user info.
 
-> By default, webapp/userinfo/userinfo.json is used. [http://localhost:8080/websocket/userinfo/userinfo.json](https://github.com/studease/chatease-server/blob/master/src/main/webapp/userinfo/userinfo.json).
+> By default, webapp/data/userinfo.json is used. [http://localhost:8080/websocket/data/userinfo.json](https://github.com/studease/chatease-server/blob/master/src/main/webapp/data/userinfo.json).
 
 
 ## Software License

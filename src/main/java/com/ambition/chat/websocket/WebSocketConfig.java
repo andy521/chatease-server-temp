@@ -10,6 +10,7 @@ import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 
+import com.ambition.chat.manager.IPListManager;
 import com.ambition.chat.websocket.SystemWebSocketHandler;
 import com.ambition.chat.websocket.WebSocketHandshakeInterceptor;
 
@@ -26,6 +27,8 @@ public class WebSocketConfig extends WebMvcConfigurerAdapter implements WebSocke
 	
 	public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
 		// TODO Auto-generated method stub
+		IPListManager.load();
+		
 		registry.addHandler(systemWebSocketHandler(), "/websck").addInterceptors(new WebSocketHandshakeInterceptor());
 		registry.addHandler(systemWebSocketHandler(), "/websck/sockjs").addInterceptors(new WebSocketHandshakeInterceptor()).withSockJS();
 		logger.info("=== Websocket handler registed ===");

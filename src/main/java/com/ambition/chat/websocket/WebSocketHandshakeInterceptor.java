@@ -12,6 +12,9 @@ import org.springframework.http.server.ServletServerHttpRequest;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
+import com.ambition.chat.manager.IPListManager;
+import com.ambition.chat.utils.Utils;
+
 public class WebSocketHandshakeInterceptor implements HandshakeInterceptor {
 
 	private static final Logger logger;
@@ -23,6 +26,12 @@ public class WebSocketHandshakeInterceptor implements HandshakeInterceptor {
 	@Override
 	public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response, WebSocketHandler handler, Map<String, Object> attributes) throws Exception {
 		// TODO Auto-generated method stub
+		String ip = Utils.getIpAddress(request);
+		if (IPListManager.clear(ip) == false) {
+			logger.warn("Shutdown connection from " + ip);
+			return false;
+		}
+		
 		if (request.getHeaders().containsKey("Sec-WebSocket-Extensions")) {
 			request.getHeaders().set("Sec-WebSocket-Extensions", "permessage-deflate");
 		}

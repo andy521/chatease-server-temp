@@ -1,0 +1,12 @@
+{
+	"status": true,
+	"user": {
+		"id": 1,
+		"name": "TonyLau"
+	},
+	"channel": {
+		"id": 1,
+		"role": 7,
+		"state": 3
+	}
+}

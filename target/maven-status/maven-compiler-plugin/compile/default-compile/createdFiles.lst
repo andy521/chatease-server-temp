@@ -1,8 +1,11 @@
 com\ambition\chat\utils\HttpUserInfoLoader.class
+com\ambition\chat\common\UserInfoInChannel.class
+com\ambition\chat\common\UserInfo.class
 com\ambition\chat\websocket\WebSocketHandshakeInterceptor.class
-com\ambition\chat\common\Channel.class
+com\ambition\chat\manager\IPListManager.class
+com\ambition\chat\manager\PunishmentManager.class
+com\ambition\chat\common\Punishment.class
 com\ambition\chat\websocket\SystemWebSocketHandler.class
 com\ambition\chat\websocket\WebSocketConfig.class
 com\ambition\chat\common\Constants.class
 com\ambition\chat\utils\Utils.class
-com\ambition\chat\common\User.class

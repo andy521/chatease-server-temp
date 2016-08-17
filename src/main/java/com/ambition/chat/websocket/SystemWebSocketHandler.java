@@ -16,9 +16,10 @@ import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.WebSocketMessage;
 import org.springframework.web.socket.WebSocketSession;
 
-import com.ambition.chat.common.Channel;
 import com.ambition.chat.common.Constants;
-import com.ambition.chat.common.User;
+import com.ambition.chat.common.UserInfo;
+import com.ambition.chat.common.UserInfoInChannel;
+import com.ambition.chat.manager.PunishmentManager;
 import com.ambition.chat.utils.HttpUserInfoLoader;
 
 @Component
@@ -59,7 +60,7 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 		}
 		
 		String channelId = data.getJSONObject("channel").get("id").toString();
-		User user = this.getAttributes(session);
+		UserInfo user = this.getAttributes(session);
 		if (user.get(channelId).setActive() == false) {
 			sendError(session, 409, data);
 			logger.warn("Frequency limited while handling cmd=" + data.getString("cmd") + ".");
@@ -97,68 +98,68 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 		if (logindata.has("user") == false) {
 			int randomId = (int) Math.floor(Math.random() * 100) * -1;
 			
-			JSONObject userjson = new JSONObject();
-			userjson.put("id", randomId);
-			userjson.put("name", "游客" + Math.abs(randomId));
+			JSONObject userdata = new JSONObject();
+			userdata.put("id", randomId);
+			userdata.put("name", "游客" + Math.abs(randomId));
 			
-			logindata.put("user", userjson);
+			logindata.put("user", userdata);
 		}
 		if (logindata.has("channel") == false) {
-			JSONObject channeljson = new JSONObject();
-			channeljson.put("id", channelId);
-			channeljson.put("role", -1);
-			channeljson.put("state", 3);
+			JSONObject channeldata = new JSONObject();
+			channeldata.put("id", channelId);
+			channeldata.put("role", -1);
+			channeldata.put("state", 3);
 			
-			logindata.put("channel", channeljson);
+			logindata.put("channel", channeldata);
 		}
 		
 		// Add user into channel.
-		JSONObject userinfo = logindata.getJSONObject("user");
-		int userId = userinfo.getInt("id");
-		String nickname = userinfo.getString("name");
+		JSONObject usrinfo = logindata.getJSONObject("user");
+		int userId = usrinfo.getInt("id");
+		String nickname = usrinfo.getString("name");
 		
-		JSONObject channelinfo = logindata.getJSONObject("channel");
-		int role = channelinfo.getInt("role");
-		int state = channelinfo.getInt("state");
+		JSONObject chaninfo = logindata.getJSONObject("channel");
+		int role = chaninfo.getInt("role");
+		int state = chaninfo.getInt("state");
 		
-		if (state <= 0) {
+		if (state <= 0 || PunishmentManager.check(channelId, userId, 0x01) > 0) {
 			sendError(session, 403, data);
 			logger.warn("Permission denied while joining channel " + channelId);
 			return;
 		}
 		
-		User user = this.getAttributes(session);
+		UserInfo user = this.getAttributes(session);
 		user.setProperties(userId, nickname);
-		Channel channel = user.get(channelId);
-		channel.setProperties(role, state);
+		UserInfoInChannel userinfo = user.get(channelId);
+		userinfo.setProperties(role, state);
 		
 		add(session, channelId);
 		
 		// Return identity data.
-		JSONObject userjson = user.getJson();
-		JSONObject channeljson = channel.getJson();
+		JSONObject userdata = user.getJson();
+		JSONObject channeldata = userinfo.getJson();
 		JSONObject identdata = new JSONObject();
 		identdata.put("raw", "identity");
-		identdata.put("user", userjson);
-		identdata.put("channel", channeljson);
+		identdata.put("user", userdata);
+		identdata.put("channel", channeldata);
 		
 		session.sendMessage(new TextMessage(identdata.toString()));
 		
 		// Broadcast joining message in the channel.
-		if (channel.getRole() > 0) {
+		if (userinfo.getRole() > 0) {
 			JSONObject joindata = new JSONObject();
 			joindata.put("raw", "join");
-			joindata.put("user", userjson);
-			joindata.put("channel", channeljson);
+			joindata.put("user", userdata);
+			joindata.put("channel", channeldata);
 			
 			send2all(new TextMessage(joindata.toString()), channelId);
 		}
-        logger.info("User " + userjson.toString() + " joined in channel " + channeljson.toString());
+        logger.info("User " + userdata.toString() + " joined in channel " + channeldata.toString());
 	}
 	
 	private void onMessage(WebSocketSession session, JSONObject data) throws Exception {
 		// TODO Auto-generated method stub
-		User user = this.getAttributes(session);
+		UserInfo user = this.getAttributes(session);
 		if (user.initialized() == false) {
 			sendError(session, 401);
 			if (session.isOpen()) {
@@ -171,22 +172,30 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 		String channelId = data.getJSONObject("channel").get("id").toString();
 		if (user.joined(channelId) == false) {
 			sendError(session, 406);
-			logger.error("Channel=" + channelId + " not joined while handling message: " + data.getString("text"));
+			logger.error("User " + user.getJson() + " not joined channel=" + channelId 
+					+ " while handling message: " + data.getString("text"));
+			return;
+		}
+		
+		if (PunishmentManager.check(channelId, user.getId(), 0x02) > 0) {
+			sendError(session, 403, data);
+			logger.error("Permission denied while handling message=" + data.getString("text") 
+					+ " from User " + user.getJson() + " in channel=" + channelId);
 			return;
 		}
 		
 		String text = data.getString("text");
 		String msgtype = data.getString("type");
 		
-		JSONObject userjson = user.getJson();
-		JSONObject channeljson = user.get(channelId).getJson();
+		JSONObject userdata = user.getJson();
+		JSONObject channeldata = user.get(channelId).getJson();
 		
 		JSONObject msgdata = new JSONObject();
 		msgdata.put("raw", "message");
 		msgdata.put("text", text);
 		msgdata.put("type", msgtype);
-		msgdata.put("user", userjson);
-		msgdata.put("channel", channeljson);
+		msgdata.put("user", userdata);
+		msgdata.put("channel", channeldata);
 		
 		TextMessage message = new TextMessage(msgdata.toString());
 		int uniId = 0;
@@ -196,17 +205,17 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 		} else {
 			send2all(message, channelId);
 		}
-		logger.info("User " + userjson.toString() + " sent message=" + text + " "
+		logger.info("User " + userdata.toString() + " sent message=" + text + " "
 				+ "to " + (msgtype.equals("uni") ? "user " + uniId : "channel " + channelId) + ".");
 	}
 	
 	public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
 		// TODO Auto-generated method stub
-		User user = this.getAttributes(session);
+		UserInfo user = this.getAttributes(session);
 		if (user.initialized() == true) {
-			Map<String, Channel> channels = user.getChannels();
+			Map<String, UserInfoInChannel> userinfos = user.getChannels();
 			String channelIds = "";
-			for (String channelId : channels.keySet()) {
+			for (String channelId : userinfos.keySet()) {
 				channelIds += (channelId.length() > 0 ? ", " : "") + channelId;
 			}
 			logger.warn("User " + user.getJson().toString() + " "
@@ -220,29 +229,29 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 	
 	public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
 		// TODO Auto-generated method stub
-		User user = this.getAttributes(session);
+		UserInfo user = this.getAttributes(session);
 		if (user.initialized() == false) {
 			logger.warn("User id not found while connection closed.");
 			return;
 		}
 		
-		JSONObject userjson = user.getJson();
+		JSONObject userdata = user.getJson();
 		
-		Map<String, Channel> channels = user.getChannels();
-		for (String channelId : channels.keySet()) {
-			Channel channel = channels.get(channelId);
-			if (channel.getRole() > 0) {
-				JSONObject channeljson = channel.getJson();
+		Map<String, UserInfoInChannel> userinfos = user.getChannels();
+		for (String channelId : userinfos.keySet()) {
+			UserInfoInChannel userinfo = userinfos.get(channelId);
+			if (userinfo.getRole() > 0) {
+				JSONObject channeldata = userinfo.getJson();
 				
 				JSONObject leftdata = new JSONObject();
 				leftdata.put("raw", "left");
-				leftdata.put("user", userjson);
-				leftdata.put("channel", channeljson);
+				leftdata.put("user", userdata);
+				leftdata.put("channel", channeldata);
 				
 				send2all(new TextMessage(leftdata.toString()), channelId);
 				
 				remove(session, channelId);
-				logger.info("User " + userjson.toString() + " left channel " + channeljson.toString() 
+				logger.info("User " + userdata.toString() + " left channel " + channeldata.toString() 
 						+ " with " + status.getCode());
 	        }
 		}
@@ -270,7 +279,7 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 			return;
 		}
 		for (WebSocketSession session : sessions) {
-			User user = this.getAttributes(session);
+			UserInfo user = this.getAttributes(session);
 			if (user.initialized() == false) {
 				continue;
 			}
@@ -330,14 +339,14 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 		session.sendMessage(new TextMessage(errordata.toString()));
 	}
 	
-	private User getAttributes(WebSocketSession session) {
+	private UserInfo getAttributes(WebSocketSession session) {
 		Map<String, Object> attributes = session.getAttributes();
-		User user;
+		UserInfo user;
 		if (attributes.containsKey(Constants.SESSION_USER) == false) {
-			user = new User();
+			user = new UserInfo();
 			attributes.put(Constants.SESSION_USER, user);
 		} else {
-			user = (User) attributes.get(Constants.SESSION_USER);
+			user = (UserInfo) attributes.get(Constants.SESSION_USER);
 		}
 		return user;
 	}
