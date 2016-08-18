@@ -4,11 +4,12 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.Future;
 
 import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.json.JSONArray;
@@ -25,17 +26,20 @@ public class PunishmentManager {
 	
 	static {
 		logger = LogManager.getLogger(IPListManager.class);
-		PUNISHMENT_REQ_URL = "http://localhost/websocket/data/punished.json";
+		PUNISHMENT_REQ_URL = "http://localhost:81/websocket/data/punished.json";
 		punishments = new HashMap<>();
 	}
 	
 	public static void load() {
-		HttpClient client = new DefaultHttpClient();
+		CloseableHttpAsyncClient client = HttpAsyncClients.createDefault();
 		HttpGet request = new HttpGet(PUNISHMENT_REQ_URL);
 		
+		Future<HttpResponse> future = null;
 		HttpResponse response = null;
 		try {
-			response = client.execute(request);
+			client.start();
+			future = client.execute(request, null);
+			response = future.get();
 		} catch (Exception e) {
 			logger.error("Failed to get punishment list. Error: " + e.toString());
 			return;
@@ -92,7 +96,7 @@ public class PunishmentManager {
 				
 				JSONObject punishdata = item.getJSONObject("punishment");
 				int code = punishdata.getInt("code");
-				long time = punishdata.getInt("time");
+				long time = punishdata.getLong("time");
 				
 				Punishment punishment = new Punishment(channelId, userId, code, time);
 				channel.put(String.valueOf(userId), punishment);
@@ -112,28 +116,29 @@ public class PunishmentManager {
 	}
 	
 	public static Punishment get(String channelId, int userId) {
-		if (punishments.containsKey(channelId) == false) {
+		Map<String, Punishment> channel = punishments.get(channelId);
+		if (channel == null) {
 			return null;
 		}
-		Map<String, Punishment> channel = punishments.get(channelId);
-		return channel.get(String.valueOf(userId));
+		Punishment punishment = channel.get(String.valueOf(userId));
+		if (punishment != null && punishment.getTime() <= new Date().getTime()) {
+			channel.remove(String.valueOf(userId));
+			return null;
+		}
+		return punishment;
 	}
 	
 	public static Punishment remove(String channelId, int userId) {
-		if (punishments.containsKey(channelId) == false) {
+		Map<String, Punishment> channel = punishments.get(channelId);
+		if (channel == null) {
 			return null;
 		}
-		Map<String, Punishment> channel = punishments.get(channelId);
 		return channel.remove(String.valueOf(userId));
 	}
 	
 	public static int check(String channelId, int userId, int code) {
 		Punishment punishment = get(channelId, userId);
 		if (punishment == null) {
-			return 0;
-		}
-		if (punishment.getTime() <= new Date().getTime()) {
-			remove(channelId, userId);
 			return 0;
 		}
 		return punishment.getCode() & code;

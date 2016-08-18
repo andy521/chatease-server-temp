@@ -1,13 +1,16 @@
 package com.ambition.chat.manager;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Future;
 
 import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.json.JSONArray;
@@ -21,22 +24,25 @@ public class IPListManager {
 	private static final Logger logger;
 	private static final String IPLIST_REQ_URL;
 	private static final Map<String, Punishment> blacklist;
-	private static final Map<String, String> whitelist;
+	private static final List<String> whitelist;
 	
 	static {
 		logger = LogManager.getLogger(IPListManager.class);
-		IPLIST_REQ_URL = "http://localhost/websocket/data/iplist.json";
+		IPLIST_REQ_URL = "http://localhost:81/websocket/data/iplist.json";
 		blacklist = new HashMap<>();
-		whitelist = new HashMap<>();
+		whitelist = new ArrayList<>();
 	}
 	
 	public static void load() {
-		HttpClient client = new DefaultHttpClient();
+		CloseableHttpAsyncClient client = HttpAsyncClients.createDefault();
 		HttpGet request = new HttpGet(IPLIST_REQ_URL);
 		
+		Future<HttpResponse> future = null;
 		HttpResponse response = null;
 		try {
-			response = client.execute(request);
+			client.start();
+			future = client.execute(request, null);
+			response = future.get();
 		} catch (Exception e) {
 			logger.error("Failed to get ip list. Error: " + e.toString());
 			return;
@@ -85,27 +91,27 @@ public class IPListManager {
 			
 			JSONObject punishdata = item.getJSONObject("punishment");
 			int code = punishdata.getInt("code");
-			long time = punishdata.getInt("time");
+			long time = punishdata.getLong("time");
 			
 			Punishment punishment = new Punishment(ip, code, time);
-			blacklist.put("ip", punishment);
+			blacklist.put(ip, punishment);
 		}
 	}
 	
 	private static void parseWhitelist(JSONArray list) {
 		for (int i = 0; i < list.length(); i++) {
 			String ip = list.getString(i);
-			whitelist.put(ip, ip);
+			whitelist.add(ip);
 		}
 	}
 	
 	public static boolean clear(String ip) {
-		if (whitelist.containsKey(ip)) {
+		if (whitelist.contains(ip)) {
 			return true;
 		}
 		if (blacklist.containsKey(ip)) {
 			Punishment punishment = blacklist.get(ip);
-			if (punishment.getTime() > new Date().getTime()) {
+			if (punishment.getTime() < new Date().getTime()) {
 				blacklist.remove(ip);
 				return true;
 			}

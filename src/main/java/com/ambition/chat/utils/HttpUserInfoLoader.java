@@ -1,9 +1,11 @@
 package com.ambition.chat.utils;
 
+import java.util.concurrent.Future;
+
 import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.json.JSONObject;
@@ -20,8 +22,7 @@ public class HttpUserInfoLoader {
 	}
 	
 	public static JSONObject load(String channelId, String tokenId) {
-		HttpClient client = new DefaultHttpClient();
-		
+		CloseableHttpAsyncClient client = HttpAsyncClients.createDefault();
 		HttpGet request = new HttpGet(USERINFO_REQ_URL + "?channel=" + channelId + "&token=" + tokenId);
 		
 		/*JSONObject param = new JSONObject();
@@ -33,9 +34,12 @@ public class HttpUserInfoLoader {
 		request.setHeader("Accept", "application/json");
 		request.setEntity(new StringEntity(param.toString(), Charset.forName("UTF-8")));*/
 		
+		Future<HttpResponse> future = null;
 		HttpResponse response = null;
 		try {
-			response = client.execute(request);
+			client.start();
+			future = client.execute(request, null);
+			response = future.get();
 		} catch (Exception e) {
 			logger.error("Failed to get user info. Error: " + e.toString());
 			return null;

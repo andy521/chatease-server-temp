@@ -17,6 +17,7 @@ import org.springframework.web.socket.WebSocketMessage;
 import org.springframework.web.socket.WebSocketSession;
 
 import com.ambition.chat.common.Constants;
+import com.ambition.chat.common.Punishment;
 import com.ambition.chat.common.UserInfo;
 import com.ambition.chat.common.UserInfoInChannel;
 import com.ambition.chat.manager.PunishmentManager;
@@ -136,8 +137,13 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 		add(session, channelId);
 		
 		// Return identity data.
-		JSONObject userdata = user.getJson();
-		JSONObject channeldata = userinfo.getJson();
+		JSONObject userdata = user.toJson();
+		JSONObject channeldata = userinfo.toJson();
+		Punishment punishment = PunishmentManager.get(channelId, userId);
+		if (punishment != null) {
+			channeldata.put("punishment", punishment.toJson());
+		}
+		
 		JSONObject identdata = new JSONObject();
 		identdata.put("raw", "identity");
 		identdata.put("user", userdata);
@@ -172,7 +178,7 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 		String channelId = data.getJSONObject("channel").get("id").toString();
 		if (user.joined(channelId) == false) {
 			sendError(session, 406);
-			logger.error("User " + user.getJson() + " not joined channel=" + channelId 
+			logger.error("User " + user.toJson() + " not joined channel=" + channelId 
 					+ " while handling message: " + data.getString("text"));
 			return;
 		}
@@ -180,15 +186,15 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 		if (PunishmentManager.check(channelId, user.getId(), 0x02) > 0) {
 			sendError(session, 403, data);
 			logger.error("Permission denied while handling message=" + data.getString("text") 
-					+ " from User " + user.getJson() + " in channel=" + channelId);
+					+ " from User " + user.toJson() + " in channel=" + channelId);
 			return;
 		}
 		
 		String text = data.getString("text");
 		String msgtype = data.getString("type");
 		
-		JSONObject userdata = user.getJson();
-		JSONObject channeldata = user.get(channelId).getJson();
+		JSONObject userdata = user.toJson();
+		JSONObject channeldata = user.get(channelId).toJson();
 		
 		JSONObject msgdata = new JSONObject();
 		msgdata.put("raw", "message");
@@ -218,7 +224,7 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 			for (String channelId : userinfos.keySet()) {
 				channelIds += (channelId.length() > 0 ? ", " : "") + channelId;
 			}
-			logger.warn("User " + user.getJson().toString() + " "
+			logger.warn("User " + user.toJson().toString() + " "
 					+ " in channel[s] " + channelIds + " transport error: \r\t" + exception.toString());
 		}
 		
@@ -235,13 +241,13 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 			return;
 		}
 		
-		JSONObject userdata = user.getJson();
+		JSONObject userdata = user.toJson();
 		
 		Map<String, UserInfoInChannel> userinfos = user.getChannels();
 		for (String channelId : userinfos.keySet()) {
 			UserInfoInChannel userinfo = userinfos.get(channelId);
 			if (userinfo.getRole() > 0) {
-				JSONObject channeldata = userinfo.getJson();
+				JSONObject channeldata = userinfo.toJson();
 				
 				JSONObject leftdata = new JSONObject();
 				leftdata.put("raw", "left");

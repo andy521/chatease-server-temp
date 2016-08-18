@@ -1,5 +1,7 @@
 package com.ambition.chat.common;
 
+import org.json.JSONObject;
+
 public class Punishment {
 
 	private String ip = null;
@@ -50,5 +52,12 @@ public class Punishment {
 	
 	public long getTime() {
 		return this.time;
+	}
+	
+	public JSONObject toJson() {
+		JSONObject punishment = new JSONObject();
+		punishment.put("code", this.code);
+		punishment.put("time", this.time);
+		return punishment;
 	}
 }

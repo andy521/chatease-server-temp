@@ -42,7 +42,7 @@ public class UserInfo {
 		return this.get(channelId).joined();
 	}
 	
-	public JSONObject getJson() {
+	public JSONObject toJson() {
 		JSONObject user = new JSONObject();
 		user.put("id", this.id);
 		user.put("name", this.name);

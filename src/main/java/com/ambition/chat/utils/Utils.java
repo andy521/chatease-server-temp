@@ -4,6 +4,8 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -16,9 +18,12 @@ import org.springframework.http.server.ServerHttpRequest;
 public class Utils {
 
 	private static final Logger logger;
+	private static final Pattern pattern;
+	private static Matcher matcher;
 	
 	static {
 		logger = LogManager.getLogger(Utils.class);
+		pattern = Pattern.compile("(25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]?\\d)){3}");
 	}
 	
 	public static JSONObject parse(HttpResponse response) {
@@ -79,6 +84,10 @@ public class Utils {
 		}
 		if(ip == null || ip.length() == 0 || ip.equalsIgnoreCase("unknown")) {
 			ip = request.getRemoteAddress().getAddress().toString();
+		}
+		matcher = pattern.matcher(ip);
+		if (matcher.find()) {
+			ip = matcher.group();
 		}
 		return ip;
 	}

@@ -27,6 +27,7 @@ public class WebSocketHandshakeInterceptor implements HandshakeInterceptor {
 	public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response, WebSocketHandler handler, Map<String, Object> attributes) throws Exception {
 		// TODO Auto-generated method stub
 		String ip = Utils.getIpAddress(request);
+		logger.warn("Connecting from " + ip);
 		if (IPListManager.clear(ip) == false) {
 			logger.warn("Shutdown connection from " + ip);
 			return false;

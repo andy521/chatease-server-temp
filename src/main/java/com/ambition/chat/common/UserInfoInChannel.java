@@ -86,7 +86,7 @@ public class UserInfoInChannel {
 		return this.joined;
 	}
 	
-	public JSONObject getJson() {
+	public JSONObject toJson() {
 		JSONObject channel = new JSONObject();
 		channel.put("id", this.id);
 		channel.put("role", this.role);

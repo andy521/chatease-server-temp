@@ -1156,9 +1156,9 @@ chatease.debug = false;
 		events = chatease.events,
 		core = chatease.core;
 	
-	core.channel = function(model, id) {
-		var _this = utils.extend(this, new events.eventdispatcher('core.channel_' + id)),
-			_id = id,
+	core.userattributes = function(model, channelId) {
+		var _this = utils.extend(this, new events.eventdispatcher('core.channel_' + channelId)),
+			_id = channelId,
 			_role = -1,
 			_state = 0,
 			_interval,
@@ -1284,7 +1284,8 @@ chatease.debug = false;
 	
 	core.model = function(config) {
 		 var _this = utils.extend(this, new events.eventdispatcher('core.model')),
-		 	_defaults = {};
+		 	_defaults = {},
+		 	_attributes = {};
 		
 		function _init() {
 			_this.config = utils.extend({}, _defaults, config);
@@ -1294,7 +1295,6 @@ chatease.debug = false;
 					id: NaN,
 					name: ''
 				},
-				channels: {},
 				state: states.CLOSED,
 				shieldMsg: false
 			}, _this.config);
@@ -1320,11 +1320,11 @@ chatease.debug = false;
 			return _this.config[name] || {};
 		};
 		
-		_this.getChannel = function(channelId) {
-			if (_this.channels.hasOwnProperty(channelId) == false) {
-				_this.channels[channelId] = new core.channel(_this, channelId);
+		_this.getAttributes = function(channelId) {
+			if (_attributes.hasOwnProperty(channelId) == false) {
+				_attributes[channelId] = new core.userattributes(_this, channelId);
 			}
-			return _this.channels[channelId];
+			return _attributes[channelId];
 		};
 		
 		_this.destroy = function() {
@@ -1524,8 +1524,8 @@ chatease.debug = false;
 			}
 			
 			var channelId = data.channel.id;
-			var channel = model.getChannel(channelId);
-			if (channel.setActive() == false) {
+			var attributes = model.getAttributes(channelId);
+			if (attributes.setActive() == false) {
 				_onError(409, data);
 				return;
 			}
@@ -1579,8 +1579,8 @@ chatease.debug = false;
 							model.user[k] = v;
 						}
 					});
-					var channel = model.getChannel(data.channel.id);
-					channel.setProperties(data.channel.role, data.channel.state);
+					var attributes = model.getAttributes(data.channel.id);
+					attributes.setProperties(data.channel.role, data.channel.state);
 					
 					view.show('已加入房间（' + data.channel.id + '）！');
 					_this.dispatchEvent(events.CHATEASE_INDENT, data);
