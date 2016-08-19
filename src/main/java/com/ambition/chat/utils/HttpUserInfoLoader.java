@@ -17,7 +17,7 @@ public class HttpUserInfoLoader {
 	
 	static {
 		logger = LogManager.getLogger(HttpUserInfoLoader.class);
-		USERINFO_REQ_URL = "http://localhost/websocket/data/userinfo.json";
+		USERINFO_REQ_URL = "http://localhost:81/websocket/data/userinfo.json";
 		//USERINFO_REQ_URL = "http://192.168.1.227:8080/live/method=httpChatRoom";
 	}
 	

@@ -5,7 +5,6 @@
 };
 
 chatease.version = '0.1.19';
-chatease.debug = false;
 
 (function(chatease) {
 	var utils = chatease.utils = {};
@@ -55,6 +54,21 @@ chatease.debug = false;
 		if (arr = document.cookie.match(reg))
 			return unescape(arr[2]);
 		return null;
+	};
+	
+	utils.formatTime = function(date) {
+		var hours = date.getHours() + 1;
+		var minutes = date.getMinutes();
+		var seconds = date.getSeconds();
+		return date.toLocaleDateString() + ' ' + utils.pad(hours, 2) + ':' + utils.pad(minutes, 2) + ':' + utils.pad(seconds, 2);
+	};
+	
+	utils.pad = function(val, len) {
+		var str = val + '';
+		while (str.length < len) {
+			str = '0' + str;
+		}
+		return str;
 	};
 	
 	
@@ -425,6 +439,8 @@ chatease.debug = false;
 		
 		_this.setup = function(options) {
 			utils.emptyElement(_this.container);
+			
+			chatease.debug = !!options.debug;
 			
 			_this.config = options;
 			_this.config.id = _this.id;
@@ -1163,7 +1179,11 @@ chatease.debug = false;
 			_state = 0,
 			_interval,
 			_active = 0,
-			_joined = false;
+			_joined = false,
+			_punishment = {
+				code: 0,
+				time: 0
+			};
 		
 		function _init() {
 			_interval = _getIntervalByRole(_role);
@@ -1190,6 +1210,20 @@ chatease.debug = false;
 			_state = state;
 			_interval = _getIntervalByRole(_role);
 			_joined = true;
+		};
+		
+		_this.setPunishment = function(punishment) {
+			_punishment.code = punishment.code;
+			_punishment.time = punishment.time;
+		};
+		
+		_this.getPunishment = function() {
+			if (_punishment.code == 0 || _punishment.time >= new Date().getTime()) {
+				_punishment.code = 0;
+				_punishment.time = 0;
+				return null;
+			}
+			return utils.extend({}, _punishment);
 		};
 		
 		_this.setActive = function() {
@@ -1530,6 +1564,12 @@ chatease.debug = false;
 				return;
 			}
 			
+			var punishment = attributes.getPunishment();
+			if (punishment != null && (punishment.code & 0x02) > 0) {
+				_onError(403, data);
+				return;
+			}
+			
 			_websocket.send(JSON.stringify(data));
 		};
 		
@@ -1579,10 +1619,24 @@ chatease.debug = false;
 							model.user[k] = v;
 						}
 					});
+					view.show('已加入房间（' + data.channel.id + '）。');
+					
 					var attributes = model.getAttributes(data.channel.id);
 					attributes.setProperties(data.channel.role, data.channel.state);
+					if ((data.channel.state & 0x02) == 0) {
+						view.show('您所在的用户组不能发言！');
+					}
 					
-					view.show('已加入房间（' + data.channel.id + '）！');
+					if (data.channel.hasOwnProperty('punishment') == true) {
+						var punishment = data.channel.punishment;
+						attributes.setPunishment(punishment);
+						
+						if ((punishment.code & 0x02) > 0) {
+							var date = new Date();
+							date.setTime(punishment.time);
+							view.show('您已被禁言（' + utils.formatTime(date) + '）！');
+						}
+					}
 					_this.dispatchEvent(events.CHATEASE_INDENT, data);
 					break;
 				case 'message':
