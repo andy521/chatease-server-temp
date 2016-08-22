@@ -51,6 +51,25 @@ public class Utils {
 		return data;
 	}
 	
+	public static JSONObject random(String channelId) {
+		int randomId = (int) Math.floor(Math.random() * 100) * -1;
+		
+		JSONObject userdata = new JSONObject();
+		userdata.put("id", randomId);
+		userdata.put("name", "сн©м" + Math.abs(randomId));
+		
+		JSONObject channeldata = new JSONObject();
+		channeldata.put("id", channelId);
+		channeldata.put("role", -1);
+		channeldata.put("state", 3);
+		
+		JSONObject logindata = new JSONObject();
+		logindata.put("user", userdata);
+		logindata.put("channel", channeldata);
+		
+		return logindata;
+	}
+	
 	public static int getIntervalByRole(int role) {
 		int val = -1;
 		if (role < 0) {
@@ -90,5 +109,12 @@ public class Utils {
 			ip = matcher.group();
 		}
 		return ip;
+	}
+	
+	public static String addQuery(String url, String q) {
+		if (q == null || q.length() == 0) {
+			return url;
+		}
+		return url + (url.indexOf("?") == -1 ? "?" : "&") + q;
 	}
 }

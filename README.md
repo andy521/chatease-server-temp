@@ -11,9 +11,9 @@ This is a server-side sample project for [chatease](https://github.com/studease/
 
 ## Build & Run
 
-> You may have an user login system, and need to control the chatting behavior. Then supply the interfaces to return json data. For data formats, please check webapp/data/*.json.
+> You may have an user login system, and need to control the chatting behavior. Then provide the interfaces to return json datas.
 
-> By default, http://localhost:81/websocket/data/*.json is used. And visitor mode is used while the userinfo.json is not available.
+> By default, webapp/data/*.json is used. And visitor mode is used while the userinfo.json is not available.
 
 
 ## Software License

@@ -2,11 +2,11 @@
 	"status": true,
 	"user": {
 		"id": 1,
-		"name": "TonyLau"
+		"name": "Tony"
 	},
 	"channel": {
 		"id": 1,
-		"role": 7,
+		"role": 128,
 		"state": 3
 	}
 }

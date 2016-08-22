@@ -5,18 +5,18 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Future;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import com.ambition.chat.common.Punishment;
+import com.ambition.chat.events.ErrorEvent;
+import com.ambition.chat.events.Event;
+import com.ambition.chat.events.EventListener;
+import com.ambition.chat.events.LoaderEvent;
+import com.ambition.chat.net.HttpLoader;
 import com.ambition.chat.utils.Utils;
 
 public class IPListManager {
@@ -26,58 +26,57 @@ public class IPListManager {
 	private static final Map<String, Punishment> blacklist;
 	private static final List<String> whitelist;
 	
+	private static final HttpLoader loader;
+	
 	static {
 		logger = LogManager.getLogger(IPListManager.class);
-		IPLIST_REQ_URL = "http://localhost:81/websocket/data/iplist.json";
+		IPLIST_REQ_URL = "http://localhost/websocket/data/iplist.json";
 		blacklist = new HashMap<>();
 		whitelist = new ArrayList<>();
+		
+		loader = new HttpLoader();
+		loader.addEventListener(Event.COMPLETE, new EventListener() {
+			
+			@Override
+			public void callback(Event e) {
+				LoaderEvent evt = (LoaderEvent) e;
+				JSONObject list = Utils.parse(evt.response());
+				if (list == null) {
+					return;
+				}
+				if (list.has("blacklist")) {
+					parseBlacklist(list.getJSONArray("blacklist"));
+				}
+				if (list.has("whitelist")) {
+					parseWhitelist(list.getJSONArray("whitelist"));
+				}
+				
+				logger.warn("Getting IP list completed.");
+			}
+		});
+		loader.addEventListener(Event.ERROR, new EventListener() {
+			
+			@Override
+			public void callback(Event e) {
+				ErrorEvent evt = (ErrorEvent) e;
+				logger.error("Failed to load IP list. Explain: " + evt.explain());
+			}
+		});
+		loader.addEventListener(LoaderEvent.CANCEL, new EventListener() {
+			
+			@Override
+			public void callback(Event e) {
+				logger.error("Loading IP list cancelled.");
+			}
+		});
 	}
 	
 	public static void load() {
-		CloseableHttpAsyncClient client = HttpAsyncClients.createDefault();
-		HttpGet request = new HttpGet(IPLIST_REQ_URL);
-		
-		Future<HttpResponse> future = null;
-		HttpResponse response = null;
-		try {
-			client.start();
-			future = client.execute(request, null);
-			response = future.get();
-		} catch (Exception e) {
-			logger.error("Failed to get ip list. Error: " + e.toString());
-			return;
-		}
-		logger.warn("Got response of ip list: " + response.getStatusLine());
-		
-		JSONObject list = null;
-		int statuscode = response.getStatusLine().getStatusCode();
-		switch (statuscode) {
-			case 200:
-				list = Utils.parse(response);
-				break;
-			case 301:
-			case 302:
-				/*if (response.containsHeader("location")) {
-					IPLIST_REQ_URL = response.getHeaders("location").toString();
-					load();
-				}*/
-				break;
-			default:
-				
-				break;
-		}
-		//httpclient.getConnectionManager().shutdown();
-		
-		if (list == null) {
-			return;
-		}
-		if (list.has("blacklist")) {
-			parseBlacklist(list.getJSONArray("blacklist"));
-		}
-		if (list.has("whitelist")) {
-			parseWhitelist(list.getJSONArray("whitelist"));
-		}
-		logger.warn("Got IP list.");
+		loader.load(IPLIST_REQ_URL, null, null);
+	}
+	
+	public static void syncLoad() {
+		loader.syncLoad(IPLIST_REQ_URL, null, null);
 	}
 	
 	private static void parseBlacklist(JSONArray list) {

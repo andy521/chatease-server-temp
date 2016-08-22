@@ -4,18 +4,18 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.concurrent.Future;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import com.ambition.chat.common.Punishment;
+import com.ambition.chat.events.ErrorEvent;
+import com.ambition.chat.events.Event;
+import com.ambition.chat.events.EventListener;
+import com.ambition.chat.events.LoaderEvent;
+import com.ambition.chat.net.HttpLoader;
 import com.ambition.chat.utils.Utils;
 
 public class PunishmentManager {
@@ -24,55 +24,54 @@ public class PunishmentManager {
 	private static final String PUNISHMENT_REQ_URL;
 	private static final Map<String, Map<String, Punishment>> punishments;
 	
+	private static final HttpLoader loader;
+	
 	static {
-		logger = LogManager.getLogger(IPListManager.class);
-		PUNISHMENT_REQ_URL = "http://localhost:81/websocket/data/punished.json";
+		logger = LogManager.getLogger(PunishmentManager.class);
+		PUNISHMENT_REQ_URL = "http://localhost/websocket/data/punished.json";
 		punishments = new HashMap<>();
+		
+		loader = new HttpLoader();
+		loader.addEventListener(Event.COMPLETE, new EventListener() {
+			
+			@Override
+			public void callback(Event e) {
+				LoaderEvent evt = (LoaderEvent) e;
+				JSONObject list = Utils.parse(evt.response());
+				if (list == null) {
+					return;
+				}
+				parseIPList(list);
+				
+				logger.warn("Getting punishing list completed.");
+			}
+		});
+		loader.addEventListener(Event.ERROR, new EventListener() {
+			
+			@Override
+			public void callback(Event e) {
+				ErrorEvent evt = (ErrorEvent) e;
+				logger.error("Failed to load punishing list. Explain: " + evt.explain());
+			}
+		});
+		loader.addEventListener(LoaderEvent.CANCEL, new EventListener() {
+			
+			@Override
+			public void callback(Event e) {
+				logger.error("Loading punishing list cancelled.");
+			}
+		});
 	}
 	
 	public static void load() {
-		CloseableHttpAsyncClient client = HttpAsyncClients.createDefault();
-		HttpGet request = new HttpGet(PUNISHMENT_REQ_URL);
-		
-		Future<HttpResponse> future = null;
-		HttpResponse response = null;
-		try {
-			client.start();
-			future = client.execute(request, null);
-			response = future.get();
-		} catch (Exception e) {
-			logger.error("Failed to get punishment list. Error: " + e.toString());
-			return;
-		}
-		logger.warn("Got response of punishment list: " + response.getStatusLine());
-		
-		JSONObject list = null;
-		int statuscode = response.getStatusLine().getStatusCode();
-		switch (statuscode) {
-			case 200:
-				list = Utils.parse(response);
-				break;
-			case 301:
-			case 302:
-				/*if (response.containsHeader("location")) {
-					PUNISHMENT_REQ_URL = response.getHeaders("location").toString();
-					load();
-				}*/
-				break;
-			default:
-				
-				break;
-		}
-		//httpclient.getConnectionManager().shutdown();
-		
-		if (list == null) {
-			return;
-		}
-		parseList(list);
-		logger.warn("Got punishment list.");
+		loader.load(PUNISHMENT_REQ_URL, null, null);
 	}
 	
-	private static void parseList(JSONObject list) {
+	public static void syncLoad() {
+		loader.syncLoad(PUNISHMENT_REQ_URL, null, null);
+	}
+	
+	private static void parseIPList(JSONObject list) {
 		Iterator<String> it = list.keys();
 		while (it.hasNext()) {
 			String channelId = it.next();

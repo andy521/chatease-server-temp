@@ -38,8 +38,10 @@ public class WebSocketHandshakeInterceptor implements HandshakeInterceptor {
 		}
 		if (request instanceof ServletServerHttpRequest) {
 			ServletServerHttpRequest servletRequest = (ServletServerHttpRequest) request;
+			
+			@SuppressWarnings("unused")
 			HttpSession session = servletRequest.getServletRequest().getSession(false);
-			logger.warn("Sessions " + (session == null ? "not " : "") + "found before handshake.");
+			//logger.warn("Sessions " + (session == null ? "not " : "") + "found before handshake.");
 		}
 		return true;
 	}

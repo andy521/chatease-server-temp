@@ -1,5 +1,6 @@
 package com.ambition.chat.websocket;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -20,17 +21,25 @@ import com.ambition.chat.common.Constants;
 import com.ambition.chat.common.Punishment;
 import com.ambition.chat.common.UserInfo;
 import com.ambition.chat.common.UserInfoInChannel;
+import com.ambition.chat.events.ErrorEvent;
+import com.ambition.chat.events.Event;
+import com.ambition.chat.events.EventListener;
+import com.ambition.chat.events.LoaderEvent;
 import com.ambition.chat.manager.PunishmentManager;
-import com.ambition.chat.utils.HttpUserInfoLoader;
+import com.ambition.chat.net.HttpLoader;
+import com.ambition.chat.utils.Utils;
 
 @Component
 public class SystemWebSocketHandler implements WebSocketHandler {
 
 	private static final Logger logger;
+	private static final String USERINFO_REQ_URL;
 	private static final Map<String, List<WebSocketSession>> groups;
 	
 	static {
 		logger = LogManager.getLogger(SystemWebSocketHandler.class);
+		USERINFO_REQ_URL = "http://localhost/websocket/data/userinfo.json";
+		//USERINFO_REQ_URL = "http://192.168.1.227:8080/live/method=httpChatRoom";
 		groups = new HashMap<>();
 	}
 	
@@ -87,11 +96,57 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 		}
 	}
 	
-	private void onJoin(WebSocketSession session, JSONObject data) throws Exception {
+	private void onJoin(final WebSocketSession session, final JSONObject data) {
 		// TODO Auto-generated method stub
+		final String channelId = data.getJSONObject("channel").get("id").toString();
+		final String tokenId = data.has("token") ? data.get("token").toString() : "";
+		
+		HttpLoader loader = new HttpLoader();
+		loader.addEventListener(Event.COMPLETE, new EventListener() {
+			
+			@Override
+			public void callback(Event e) {
+				LoaderEvent evt = (LoaderEvent) e;
+				logger.warn("Loading user info completed.");
+				
+				JSONObject logindata = Utils.parse(evt.response());
+				if (logindata == null) {
+					logindata = Utils.random(channelId);
+				}
+				onUserInfo(session, data, logindata);
+			}
+		});
+		loader.addEventListener(Event.ERROR, new EventListener() {
+			
+			@Override
+			public void callback(Event e) {
+				ErrorEvent evt = (ErrorEvent) e;
+				logger.error("Failed to load user info. Explain: " + evt.explain());
+				
+				JSONObject logindata = Utils.random(channelId);
+				if (logindata != null) {
+					onUserInfo(session, data, logindata);
+				}
+			}
+		});
+		loader.addEventListener(LoaderEvent.CANCEL, new EventListener() {
+			
+			@Override
+			public void callback(Event e) {
+				logger.error("Loading user info cancelled.");
+				
+				JSONObject logindata = Utils.random(channelId);
+				if (logindata != null) {
+					onUserInfo(session, data, logindata);
+				}
+			}
+		});
+		loader.load(USERINFO_REQ_URL, new JSONObject().put("channel", channelId).put("token", tokenId), "GET");
+	}
+	
+	private void onUserInfo(WebSocketSession session, JSONObject data, JSONObject logindata) {
 		String channelId = data.getJSONObject("channel").get("id").toString();
-		String tokenId = data.has("token") ? data.get("token").toString() : "";
-		JSONObject logindata = HttpUserInfoLoader.load(channelId, tokenId);
+		
 		if (logindata == null) {
 			logindata = new JSONObject();
 			logger.error("Unable to get user info, fall through.");
@@ -129,7 +184,7 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 			return;
 		}
 		
-		UserInfo user = this.getAttributes(session);
+		UserInfo user = SystemWebSocketHandler.this.getAttributes(session);
 		user.setProperties(userId, nickname);
 		UserInfoInChannel userinfo = user.get(channelId);
 		userinfo.setProperties(role, state);
@@ -149,7 +204,7 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 		identdata.put("user", userdata);
 		identdata.put("channel", channeldata);
 		
-		session.sendMessage(new TextMessage(identdata.toString()));
+		send2session(session, new TextMessage(identdata.toString()));
 		
 		// Broadcast joining message in the channel.
 		if (userinfo.getRole() > 0) {
@@ -163,13 +218,13 @@ public class SystemWebSocketHandler implements WebSocketHandler {
         logger.info("User " + userdata.toString() + " joined in channel " + channeldata.toString());
 	}
 	
-	private void onMessage(WebSocketSession session, JSONObject data) throws Exception {
+	private void onMessage(WebSocketSession session, JSONObject data) {
 		// TODO Auto-generated method stub
 		UserInfo user = this.getAttributes(session);
 		if (user.initialized() == false) {
 			sendError(session, 401);
 			if (session.isOpen()) {
-				session.close();
+				closeSession(session);
 			}
 			logger.error("User ID not found while handling message: " + data.getString("text"));
 			return;
@@ -227,10 +282,7 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 			logger.warn("User " + user.toJson().toString() + " "
 					+ " in channel[s] " + channelIds + " transport error: \r\t" + exception.toString());
 		}
-		
-		if (session.isOpen()) {
-			session.close();
-		}
+		closeSession(session);
 	}
 	
 	public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
@@ -264,21 +316,20 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 	}
 	
 	
-	private void send2all(TextMessage message, String channelId) throws Exception {
+	private void send2all(TextMessage message, String channelId) {
 		// TODO Auto-generated method stub
 		List<WebSocketSession> sessions = groups.get(channelId);
 		if (sessions == null) {
 			return;
 		}
 		for (WebSocketSession session : sessions) {
-			if (session.isOpen() == false) {
-				continue;
+			if (session.isOpen()) {
+				send2session(session, message);
 			}
-			session.sendMessage(message);
 		}
 	}
 	
-	private void send2user(TextMessage message, String channelId, int userId) throws Exception {
+	private void send2user(TextMessage message, String channelId, int userId) {
 		// TODO Auto-generated method stub
 		List<WebSocketSession> sessions = groups.get(channelId);
 		if (sessions == null) {
@@ -290,17 +341,17 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 				continue;
 			}
 			if (user.getId() == userId) {
-				session.sendMessage(message);
+				send2session(session, message);
 			}
 		}
 	}
 	
-	private void sendError(WebSocketSession session, int code) throws Exception {
+	private void sendError(WebSocketSession session, int code) {
 		// TODO Auto-generated method stub
 		sendError(session, code, null);
 	}
 	
-	private void sendError(WebSocketSession session, int code, JSONObject params) throws Exception {
+	private void sendError(WebSocketSession session, int code, JSONObject params) {
 		// TODO Auto-generated method stub
 		String explain = "";
 		switch (code) {
@@ -341,8 +392,25 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 				errordata.put(key, params.get(key));
 			}
 		}
-		
-		session.sendMessage(new TextMessage(errordata.toString()));
+		send2session(session, new TextMessage(errordata.toString()));
+	}
+	
+	private void send2session(WebSocketSession session, TextMessage message) {
+		try {
+			session.sendMessage(message);
+		} catch (IOException e) {
+			// Ignore this.
+		}
+	}
+	
+	private void closeSession(WebSocketSession session) {
+		if (session.isOpen()) {
+			try {
+				session.close();
+			} catch (IOException e) {
+				// Ignore this.
+			}
+		}
 	}
 	
 	private UserInfo getAttributes(WebSocketSession session) {
