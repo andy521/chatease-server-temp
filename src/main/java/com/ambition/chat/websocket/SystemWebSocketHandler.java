@@ -184,7 +184,7 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 			return;
 		}
 		
-		UserInfo user = SystemWebSocketHandler.this.getAttributes(session);
+		UserInfo user = this.getAttributes(session);
 		user.setProperties(userId, nickname);
 		UserInfoInChannel userinfo = user.get(channelId);
 		userinfo.setProperties(role, state);

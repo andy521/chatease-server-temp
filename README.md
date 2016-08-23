@@ -6,7 +6,7 @@
 
 > [[zh_doc] http://blog.csdn.net/icysky1989/article/details/52138527](http://blog.csdn.net/icysky1989/article/details/52138527)
 
-This is a server-side sample project for [chatease](https://github.com/studease/chatease), using spring-websocket.
+This is a server-side maven project for [chatease](https://github.com/studease/chatease), using spring-websocket.
 
 
 ## Build & Run
