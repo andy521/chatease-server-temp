@@ -266,8 +266,9 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 		} else {
 			send2all(message, channelId);
 		}
-		logger.info("User " + userdata.toString() + " sent message=" + text + " "
-				+ "to " + (msgtype.equals("uni") ? "user " + uniId : "channel " + channelId) + ".");
+		logger.info(msgdata.toString());
+		/*logger.info("User " + userdata.toString() + " sent message=" + text + " "
+				+ "to " + (msgtype.equals("uni") ? "user " + uniId : "channel " + channelId) + ".");*/
 	}
 	
 	public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
@@ -277,7 +278,8 @@ public class SystemWebSocketHandler implements WebSocketHandler {
 			Map<String, UserInfoInChannel> userinfos = user.getChannels();
 			String channelIds = "";
 			for (String channelId : userinfos.keySet()) {
-				channelIds += (channelId.length() > 0 ? ", " : "") + channelId;
+				remove(session, channelId);
+				channelIds += (channelIds.length() > 0 ? ", " : "") + channelId;
 			}
 			logger.warn("User " + user.toJson().toString() + " "
 					+ " in channel[s] " + channelIds + " transport error: \r\t" + exception.toString());

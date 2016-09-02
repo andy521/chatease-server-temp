@@ -6,7 +6,7 @@
 	},
 	"channel": {
 		"id": 1,
-		"role": 128,
+		"role": 0,
 		"state": 3
 	}
 }
