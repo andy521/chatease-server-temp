@@ -1,12 +1,17 @@
-# chatease-server
+# chatease-server-temp
 
 > [[domain] http://studease.cn](http://studease.cn)
 
-> [[source] https://github.com/studease/chatease-server](https://github.com/studease/chatease-server)
+> [[source] https://github.com/studease/chatease-server-temp](https://github.com/studease/chatease-server-temp)
 
 > [[zh_doc] http://blog.csdn.net/icysky1989/article/details/52138527](http://blog.csdn.net/icysky1989/article/details/52138527)
 
 This is a server-side maven project for [chatease](https://github.com/studease/chatease), using spring-websocket.
+
+
+## Note
+
+This project is outdated. Please have a look at [chatease-server](https://github.com/studease/chatease-server).
 
 
 ## Build & Run
